@@ -1,0 +1,16 @@
+type,date,offset_years,label_es,notes_es
+absolute,2028-04-30,,Elecciones generales 2028,"Fecha aproximada: se muestra solo el año."
+absolute,2030-06-15,,Mundial 2030,"Fecha aproximada: se muestra solo el año."
+absolute,2033-04-30,,Elecciones generales 2033,"Fecha aproximada: se muestra solo el año."
+absolute,2034-06-15,,Mundial 2034,"Fecha aproximada: se muestra solo el año."
+absolute,2038-04-30,,Elecciones generales 2038,"Fecha aproximada: se muestra solo el año."
+absolute,2050-01-01,,Año 2050,
+absolute,2061-05-15,,250 años de la Independencia,
+absolute,2100-01-01,,Año 2100,
+offset,,6,Un bebé que nace hoy entra a primer grado,
+offset,,18,Ese bebé termina el colegio,
+offset,,30,Ese bebé cumple 30 años,
+offset,,65,Ese bebé se jubila,
+offset,,100,Pasó un siglo entero,
+offset,,500,Pasaron cinco siglos,
+offset,,1000,Pasó un milenio,

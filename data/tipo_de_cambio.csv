@@ -1,0 +1,3 @@
+date,pyg_per_usd,type,source_url,use,notes_es
+2026-11-09,6226.21,BCP referencial interbancario,https://www.bcp.gov.py/webapps/web/cotizacion/referencial-fluctuante-interbancario,1,"Promedio ponderado de operaciones interbancarias al contado. Es el tipo de cambio que usa el sitio para convertir entre dólares y guaraníes."
+2026-11-09,6164.72,BCP referencial fluctuante (punto medio compra/venta),https://www.bcp.gov.py/webapps/web/cotizacion/referencial-fluctuante,0,"Compra G. 6.146,64 / venta G. 6.182,79. Otra tabla del BCP para el mismo día; se guarda como referencia, no se usa."

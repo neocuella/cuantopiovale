@@ -1,0 +1,8 @@
+id,value,unit,description_es,as_of,confidence,source_url,notes_es
+salario_minimo_mensual,3044000,PYG,"Salario mínimo legal mensual para actividades diversas no especificadas",2026-07-01,alta,https://impuestospy.com/impuestos/decreto-n-6225-2026/,"Decreto N.º 6225/2026. Leído en un sitio que reproduce el decreto, no en la Gaceta Oficial."
+poblacion,6109903,personas,"Población de Paraguay, resultados finales del Censo 2022 (INE)",2022,alta,https://www.lanacion.com.py/pais_edicion_impresa/2024/08/22/ine-presento-los-datos-finales-del-censo-2022/,
+billete_100_usd_espesor,0.109,mm,"Espesor de un billete de dólar",,media-alta,https://hypertextbook.com/facts/1999/DeneneWilliams.shtml,"Dato del Bureau of Engraving and Printing citado en una fuente secundaria."
+billete_100_usd_peso,1,g,"Peso de un billete de dólar, cualquier denominación",,alta,https://www.bep.gov/currency/faqs,
+petra_tower_altura,172,m,"Altura de la Petra Tower de Asunción, el edificio más alto de Paraguay",2025,media-alta,https://en.wikipedia.org/wiki/Petra_Tower,
+presupuesto_salud_2026,10200000000000,PYG,"Presupuesto 2026 del Ministerio de Salud Pública y Bienestar Social",2025-12-02,media-alta,https://www.ultimahora.com/congreso-sanciona-el-pgn-2026-con-aumento-para-viajes-de-pena,
+presupuesto_nacion_2026,149600000000000,PYG,"Presupuesto General de la Nación 2026",2025-12-31,alta,https://www.lanacion.com.py/negocios/2026/01/05/pgn-2026-alcanza-g-1496-billones-y-refuerza-salud-educacion-y-proteccion-social/,
