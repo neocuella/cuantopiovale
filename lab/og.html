@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vistas previas</title>
+    <style>
+      :root { --ink: #17161c; --muted: #6b6570; --line: #dde3ea; --accent: #ff4f1f; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 20px 16px 40px; font-family: 'Geist', system-ui, sans-serif; color: var(--ink); background: #fff; }
+      h1 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 900; letter-spacing: -0.03em; }
+      p { margin: 0 0 12px; color: var(--muted); max-width: 60ch; }
+      button { font: inherit; font-weight: 800; padding: 10px 18px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #status { display: inline-block; margin-left: 12px; font-weight: 700; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; margin-top: 20px; }
+      figure { margin: 0; }
+      figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+      figcaption { margin-top: 6px; font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <h1>Vistas previas para compartir</h1>
+    <p>
+      Una imagen de 1200×630 por cosa habilitada, más la de la portada. «Guardar» las escribe en
+      public/og/ (solo funciona con <code>npm run dev</code>). Volvé a guardarlas cuando cambien los datos.
+    </p>
+    <button type="button" id="save" disabled>Guardar en public/og/</button><span id="status"></span>
+    <div class="grid" id="grid"></div>
+    <script type="module" src="./og.js"></script>
+  </body>
+</html>

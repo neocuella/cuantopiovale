@@ -21,6 +21,8 @@ Son CSV en UTF-8, con coma como separador y punto como separador decimal.
    guaraníes y el dólar varió mucho en 2026.
 2. **El costo de cada cosa.** Es la **mediana** de las filas de `precios.csv` de esa cosa
    que tienen `use=1`. Los precios en dólares se pasan a guaraníes con el mismo tipo de cambio.
+   Si una cosa se compra por partes, cada fila dice cuál en `component_es` (la cama de terapia
+   intensiva tiene cama, monitor y respirador): se saca la mediana de cada parte y se suman.
 3. **Cuántas alcanzan.** Cifra dividida por costo unitario, redondeado hacia abajo.
 4. **Hasta cuándo.** Una unidad cada `period_days` días (columna de `items.csv`), empezando hoy.
 

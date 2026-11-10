@@ -102,13 +102,21 @@ export function buildModel(tables) {
     sourceType: r.source_type,
     url: r.url,
     notes: r.notes_es,
+    component: r.component_es || '',
   }));
 
   const items = tables.items.rows
     .map((r) => {
       const itemPrices = prices.filter((p) => p.itemId === r.id);
       const used = itemPrices.filter((p) => p.use);
-      const unitCost = median(used.map((p) => p.unitPYG));
+      // Si los precios están separados por partes (la cama de terapia intensiva: respirador,
+      // monitor y cama), el costo es la suma de la mediana de cada parte; si no, la mediana.
+      const names = [...new Set(used.map((p) => p.component).filter(Boolean))];
+      const components = names.map((name) => {
+        const list = used.filter((p) => p.component === name);
+        return { name, count: list.length, median: median(list.map((p) => p.unitPYG)) };
+      });
+      const unitCost = components.length ? components.reduce((s, c) => s + c.median, 0) : median(used.map((p) => p.unitPYG));
       const units = unitCost > 0 ? Math.floor(total / unitCost) : 0;
       const periodDays = num(r.period_days);
       return {
@@ -126,6 +134,7 @@ export function buildModel(tables) {
         emoji: r.emoji || '',
         prices: [...used, ...itemPrices.filter((p) => !p.use)],
         usedCount: used.length,
+        components,
         unitCost,
         units,
         totalDays: units * periodDays,

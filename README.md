@@ -1,10 +1,10 @@
-# ¿Cuánto es realmente?
+# ¿Cuánto pio vale?
 
 Un sitio visual para dimensionar una cifra enorme: el **perjuicio patrimonial preliminar estimado**
 que el Ministerio Público presentó en la imputación del llamado caso ueno.
 
 La pregunta es simple: si compráramos o construyéramos **una cosa por día, empezando hoy**
-(una vivienda social, un aula, una ambulancia, un hospital...), ¿qué fecha marcaría el
+(una vivienda social, un aula, una ambulancia, una cama de terapia intensiva...), ¿qué fecha marcaría el
 calendario cuando se termina la plata?
 
 Es un sitio hermano de [caso-ueno.rickovelar.com](https://caso-ueno.rickovelar.com/), pero
@@ -37,6 +37,10 @@ npm run preview    # sirve dist/ en http://localhost:4173
 `dist/` es un sitio estático: se puede publicar en cualquier hosting de archivos. Los CSV se
 publican tal cual en `dist/data/`, para que se puedan descargar.
 
+El sitio publicado está en [cuantopiovale.rickovelar.com](https://cuantopiovale.rickovelar.com/),
+servido por Cloudflare (Workers con archivos estáticos, ver [`wrangler.jsonc`](wrangler.jsonc)).
+Para publicar: `npx wrangler deploy` (construye, valida y sube `dist/`).
+
 ## Cómo funcionan los datos
 
 **Todo número que muestra el sitio sale de los CSV de [`data/`](data/).** No hay cifras escritas
@@ -44,7 +48,9 @@ en el código. La explicación completa está en [`data/README.md`](data/README.
 
 1. La cifra es la suma de los dos componentes de `data/caso.csv`. La parte en dólares se pasa a
    guaraníes con el tipo de cambio marcado `use=1` en `data/tipo_de_cambio.csv`.
-2. El costo de cada cosa es la **mediana** de sus filas con `use=1` en `data/precios.csv`.
+2. El costo de cada cosa es la **mediana** de sus filas con `use=1` en `data/precios.csv`. Si las
+   filas tienen la columna `component_es` (por ejemplo, la cama de terapia intensiva: cama,
+   monitor y respirador), se saca la mediana de cada componente y se suman.
 3. Unidades = cifra ÷ costo, redondeado hacia abajo.
 4. Una unidad cada `period_days` días (columna de `data/items.csv`), empezando hoy.
    La fecha final es hoy + unidades × `period_days`.
@@ -54,7 +60,8 @@ que cada precio tenga URL, que los números se lean bien y que haya un solo tipo
 También imprime la tabla de cosa → costo → unidades → duración para revisar a ojo.
 
 `items.csv` tiene dos columnas de presentación: `model` (qué modelo 3D se dibuja: `casa`, `aula`,
-`usf`, `ambulancia`, `camioneta`, `deportivo`, `moto`, `torre`, `hospital`) y `emoji`
+`usf`, `ambulancia`, `camioneta`, `deportivo`, `todoterreno`, `moto`, `torre`, `bus`,
+`cama_uti`, `acelerador`, `hospital`) y `emoji`
 (se usa si el navegador no puede dibujar 3D).
 
 ## Corregir o agregar un dato
@@ -76,13 +83,15 @@ También imprime la tabla de cosa → costo → unidades → duración para revi
 - `src/scene/stage.js`: la escena. El calendario se imprime en el piso con shaders (un rectángulo
   por año y uno por mes) y los modelos se cargan solo para los meses que se ven, con un tope fijo
   de instancias. De lejos se ven los meses y los años pintados según lo lleno que están.
-- `src/ui/timeline.js` y `src/ui/stepper.js`: la línea de tiempo de abajo y el scroll, que avanza
-  de a días, semanas, meses o años según la velocidad. Todo lo que se ve depende de la fecha
-  marcada, así que se puede ir y volver. El modo «Explorar» cambia el scroll y los gestos por
-  mover, acercar y girar la cámara.
+- `src/ui/timeline.js` y `src/ui/stepper.js`: la línea de tiempo de abajo. Se arrastra, o se hace
+  scroll sobre ella para avanzar de a días, semanas, meses o años según la velocidad. Todo lo que
+  se ve depende de la fecha marcada, así que se puede ir y volver. Sobre el calendario, los gestos
+  mueven, acercan y giran la cámara; mientras nadie la toca, la cámara sigue la fecha.
 - Respeta `prefers-reduced-motion` (sin movimientos automáticos de cámara ni caídas) y muestra el
   resultado sin animación si no hay WebGL.
 
 ## Licencia
 
 [MIT](LICENSE). Los datos tienen sus fuentes indicadas en cada fila.
+
+La tipografía es [Geist](https://vercel.com/font) (Vercel), bajo la licencia SIL Open Font License 1.1 ([src/fonts/OFL-Geist.txt](src/fonts/OFL-Geist.txt)); se sirve con el sitio.

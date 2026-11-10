@@ -1,0 +1,18 @@
+// Publicación en Cloudflare (Workers con archivos estáticos): sirve dist/ en cuantopiovale.rickovelar.com.
+// `npx wrangler deploy` construye la página con `npm run build` (que valida los datos) y luego la publica.
+{
+  "$schema": "https://unpkg.com/wrangler@4.141.0/config-schema.json",
+  "name": "cuantopiovale",
+  "compatibility_date": "2026-11-01",
+  "build": {
+    "command": "npm run build"
+  },
+  "assets": {
+    "directory": "./dist"
+  },
+  "routes": [
+    { "pattern": "cuantopiovale.rickovelar.com", "custom_domain": true }
+  ],
+  "workers_dev": false,
+  "preview_urls": false
+}

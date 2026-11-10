@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cómo se ve al compartir</title>
+    <style>
+      :root { --ink: #17161c; --muted: #6b6570; --line: #dde3ea; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 20px 16px 40px; font-family: system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif; color: var(--ink); background: #fff; }
+      h1 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 900; letter-spacing: -0.02em; }
+      .intro { margin: 0 0 16px; color: var(--muted); max-width: 64ch; }
+      select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+      .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 24px; margin-top: 20px; align-items: start; }
+      h2 { margin: 0 0 8px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+      /* chat: burbuja con la vista previa arriba */
+      .chat { background: #e9e4dc; padding: 16px; border-radius: 12px; }
+      .bubble { margin-left: auto; max-width: 340px; background: #d9fdd3; border-radius: 10px; padding: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.12); }
+      .bubble .card { background: rgba(0,0,0,.05); border-radius: 7px; overflow: hidden; }
+      .bubble img { display: block; width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; }
+      .bubble .meta { padding: 8px 10px; }
+      .bubble .t { font-weight: 700; font-size: 14px; line-height: 1.3; }
+      .bubble .d { font-size: 13px; color: #555; margin-top: 2px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .bubble .u { font-size: 12px; color: #777; margin-top: 4px; }
+      .bubble .msg { padding: 6px 8px 2px; font-size: 14px; line-height: 1.35; word-break: break-word; }
+      .bubble .msg a { color: #027eb5; }
+      .bubble .time { text-align: right; font-size: 11px; color: #667; padding: 0 8px 4px; }
+
+      /* tarjeta grande: imagen con el título encima, dominio abajo */
+      .big { border: 1px solid #cfd9de; border-radius: 16px; overflow: hidden; position: relative; max-width: 500px; }
+      .big img { display: block; width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; }
+      .big .t { position: absolute; left: 12px; bottom: 12px; max-width: calc(100% - 24px); background: rgba(0,0,0,.77); color: #fff; font-size: 13px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .big-u { font-size: 13px; color: #536471; margin-top: 4px; }
+
+      /* tarjeta con texto abajo */
+      .fb { border: 1px solid #dadde1; max-width: 500px; background: #fff; }
+      .fb img { display: block; width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; }
+      .fb .meta { background: #f0f2f5; padding: 10px 12px; }
+      .fb .u { font-size: 12px; color: #65676b; text-transform: uppercase; }
+      .fb .t { font-size: 16px; font-weight: 700; line-height: 1.25; margin-top: 3px; }
+      .fb .d { font-size: 14px; color: #65676b; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .note { margin-top: 24px; font-size: 0.85rem; color: var(--muted); max-width: 70ch; }
+    </style>
+  </head>
+  <body>
+    <h1>Cómo se ve al compartir</h1>
+    <p class="intro">
+      Simulación local con las etiquetas reales (og:title, og:description, og:image) de cada página. Cada
+      app corta y acomoda distinto, así que es aproximado.
+    </p>
+    <label>Página: <select id="pick"></select></label>
+    <div class="row" id="row"></div>
+    <p class="note" id="note"></p>
+    <script type="module" src="./preview.js"></script>
+  </body>
+</html>

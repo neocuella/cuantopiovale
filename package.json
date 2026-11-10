@@ -2,7 +2,7 @@
   "name": "cuantoesrealmente",
   "version": "0.1.0",
   "private": true,
-  "description": "¿Cuánto es realmente? Una forma visual de dimensionar el perjuicio patrimonial preliminar estimado en la imputación fiscal del caso ueno.",
+  "description": "¿Cuánto pio vale? Una forma visual de dimensionar el perjuicio patrimonial preliminar estimado en la imputación fiscal del caso ueno.",
   "license": "MIT",
   "type": "module",
   "scripts": {

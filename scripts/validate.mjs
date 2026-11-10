@@ -157,11 +157,11 @@ function finish() {
 function printReport() {
   const model = buildModel(tables);
   const start = todayUTC();
-  console.log(`Tipo de cambio usado: G. ${fmtNum(model.rate.value, 2)} por dólar (${model.rate.type}, ${model.rate.date})`);
+  console.log(`Tipo de cambio usado: Gs. ${fmtNum(model.rate.value, 2)} por dólar (${model.rate.type}, ${model.rate.date})`);
   for (const c of model.components) {
     console.log(`  ${c.id}: ${c.currency} ${fmtNum(c.amount)} → ${fmtGs(c.pyg)}`);
   }
-  console.log(`Total: ${fmtGs(model.total)} = G. ${fmtMillions(model.total)} = ${fmtGsWords(model.total)} ≈ ${fmtUsdWords(model.totalUSD)}`);
+  console.log(`Total: ${fmtGs(model.total)} = Gs. ${fmtMillions(model.total)} = ${fmtGsWords(model.total)} ≈ ${fmtUsdWords(model.totalUSD)}`);
   console.log(`Inicio de la línea de tiempo (hoy): ${fmtDate(start)}\n`);
 
   const rows = model.items

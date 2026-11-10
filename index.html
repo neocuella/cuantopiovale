@@ -3,60 +3,72 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>¿Cuánto es realmente?</title>
-    <meta name="description" content="Una forma visual de dimensionar el perjuicio patrimonial preliminar estimado en la imputación fiscal del caso ueno: si compráramos una cosa por día desde hoy, ¿hasta cuándo alcanza?" />
-    <meta name="theme-color" content="#fff4e2" />
-    <meta property="og:title" content="¿Cuánto es realmente?" />
-    <meta property="og:description" content="Si compráramos una cosa por día desde hoy, ¿hasta cuándo alcanza el perjuicio preliminar estimado del caso ueno?" />
+    <title>¿Cuánto pio valen 813 millones de dólares del caso ueno?</title>
+    <meta name="description" content="¿Cuánto pio valen 813 millones de dólares del caso ueno?" />
+    <meta name="theme-color" content="#d4e7f7" />
+    <meta property="og:title" content="¿Cuánto pio valen 813 millones de dólares del caso ueno?" />
+    <meta property="og:description" content="Si compráramos una cosa por día desde hoy, ¿hasta cuándo alcanza? Según la imputación fiscal; no es una pérdida probada." />
+    <!-- Vista previa al compartir. En el build, vite.config.js copia esta página a c/<id>/ y
+         cambia estas etiquetas por las de cada cosa. Las imágenes salen de lab/og.html. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="¿Cuánto pio vale?" />
+    <meta property="og:locale" content="es_PY" />
+    <meta property="og:url" content="https://cuantopiovale.rickovelar.com/" />
+    <meta property="og:image" content="https://cuantopiovale.rickovelar.com/og/inicio.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="US$ 813 millones: el perjuicio patrimonial preliminar estimado en la imputación del caso ueno." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://cuantopiovale.rickovelar.com/" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/src/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <a class="skip-link" href="#picker">Ir a elegir una cosa</a>
-
     <header class="hero" id="intro">
-      <div class="wrap hero-inner">
-        <p class="brand">¿Cuánto es realmente?</p>
-        <p class="kicker">Caso ueno · según la imputación fiscal</p>
-        <h1 class="figure">
+      <nav class="hero-nav" aria-label="Enlaces del sitio">
+        <a class="icon-btn" href="https://x.com/mendigodetokens" target="_blank" rel="noopener" aria-label="@mendigodetokens en X" data-tip="@mendigodetokens">
+          <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+        </a>
+        <a class="icon-btn" href="https://github.com/neocuella/cuantopiovale" target="_blank" rel="noopener" aria-label="Código y datos en GitHub" data-tip="Código y datos en GitHub">
+          <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg>
+        </a>
+        <button type="button" class="icon-btn" id="about-open" aria-haspopup="dialog" aria-controls="sobre" aria-label="Sobre los datos" data-tip="Sobre los datos">
+          <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" stroke-width="2" /><circle cx="12" cy="7.6" r="1.35" fill="currentColor" /><path d="M12 11v6.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+        </button>
+      </nav>
+      <div class="wrap hero-grid">
+        <h1 class="hero-title">¿Cuánto pio vale?</h1>
+        <p class="hero-figure">
           <span class="visually-hidden">Perjuicio patrimonial preliminar estimado: </span>
+          <span id="fig-usd" class="fig-usd"></span>
           <span id="fig-gs" class="fig-gs"></span>
-        </h1>
-        <p id="fig-full" class="fig-full"></p>
-        <p id="fig-usd" class="fig-usd"></p>
-        <p id="lede" class="lede"></p>
-        <p class="disclaimer">
-          Corresponde a depósitos de instituciones estatales y previsionales. No es una pérdida probada:
-          el caso está en investigación y las personas imputadas no fueron acusadas ni condenadas.
         </p>
-        <button type="button" class="btn btn-primary btn-big" id="go-picker">¿Y eso cuánto es? <span aria-hidden="true">→</span></button>
-      </div>
-      <div class="hero-deco" aria-hidden="true">
-        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        <div class="hero-art" id="hero-art" aria-hidden="true">
+          <canvas class="hero-canvas" id="hero-canvas"></canvas>
+          <div class="hero-fallback" id="hero-fallback" hidden><span class="hero-fallback-day" id="hero-fallback-day"></span><span class="hero-fallback-emoji" id="hero-fallback-emoji"></span></div>
+        </div>
+        <div class="hero-cards">
+          <section class="info-card" aria-label="Qué es la cifra">
+            <p class="info-text" id="lede"></p>
+            <p class="info-src" id="fig-src"></p>
+          </section>
+          <section class="info-card info-card-caveat" aria-label="Aclaración sobre la cifra">
+            <p class="info-text">
+              Corresponde a depósitos de instituciones estatales y previsionales. <em>No es una pérdida probada:
+              el caso está en investigación y las personas imputadas no fueron acusadas ni condenadas.</em>
+            </p>
+          </section>
+        </div>
+        <div class="hero-cta">
+          <button type="button" class="btn btn-primary btn-big" id="go-run">¿Y eso cuánto es? <span aria-hidden="true">→</span></button>
+        </div>
       </div>
     </header>
 
-    <main>
-      <section class="picker" id="picker" aria-labelledby="picker-title">
-        <div class="wrap">
-          <h2 id="picker-title" class="section-title">Elegí una cosa.<br />Compramos 1 por día, desde hoy.</h2>
-          <p class="section-sub">¿Qué fecha marca el calendario cuando se termina la plata?</p>
-          <ul class="cards" id="cards" aria-label="Cosas para comparar"></ul>
-          <div class="start-bar">
-            <button type="button" class="btn btn-primary btn-big" id="start-run"><span id="start-label">Arrancar</span> <span aria-hidden="true">→</span></button>
-          </div>
-        </div>
-      </section>
-
-      <section class="facts" id="facts" aria-labelledby="facts-title">
-        <div class="wrap">
-          <h2 id="facts-title" class="section-title">Para dimensionar</h2>
-          <ul class="fact-list" id="facts-list"></ul>
-        </div>
-      </section>
-    </main>
-
-    <footer class="about" id="sobre" aria-labelledby="about-title">
-      <div class="wrap">
+    <dialog class="about" id="sobre" aria-labelledby="about-title">
+      <button type="button" class="btn btn-small btn-icon about-close" id="about-close" aria-label="Cerrar">×</button>
+      <div class="about-inner">
         <h2 id="about-title" class="section-title">Sobre los datos</h2>
         <p class="about-lede">
           Este sitio no acusa a nadie. Muestra, a escala, la cifra que el Ministerio Público presentó como
@@ -65,22 +77,22 @@
         <div class="about-body" id="about-body"></div>
         <p class="rate-line muted small" id="rate-line"></p>
       </div>
-    </footer>
+    </dialog>
 
-    <div class="run" id="run" hidden role="region" aria-label="Simulación" data-mode="time">
+    <div class="run" id="run" hidden role="region" aria-label="Simulación" >
       <canvas id="scene" aria-hidden="true"></canvas>
       <div class="pins" id="pins" aria-hidden="true"></div>
       <div class="cell-tip" id="cell-tip" hidden aria-hidden="true"></div>
       <div class="hud" aria-hidden="true">
         <div class="hud-top" id="hud-top">
+          <div class="hud-count">
+            <span class="hud-units" id="hud-units"></span>
+            <span class="hud-units-name" id="hud-units-name"></span>
+          </div>
           <div class="hud-date">
             <span class="hud-day" id="hud-day"></span>
             <span class="hud-year" id="hud-year"></span>
             <span class="step-unit" id="step-unit"></span>
-          </div>
-          <div class="hud-count">
-            <span class="hud-units" id="hud-units"></span>
-            <span class="hud-units-name" id="hud-units-name"></span>
           </div>
         </div>
         <ul class="hud-hitos" id="hud-hitos"></ul>
@@ -88,11 +100,11 @@
       <div class="run-controls">
         <button type="button" class="btn btn-small btn-icon" id="close-run" aria-label="Salir de la simulación">×</button>
       </div>
-      <div class="nav" id="nav" hidden>
-        <button type="button" class="nav-btn" id="nav-in" aria-label="Acercar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg></button>
-        <button type="button" class="nav-btn" id="nav-out" aria-label="Alejar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg></button>
-        <button type="button" class="nav-btn" id="nav-rot" aria-label="Girar la vista"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4" /></svg></button>
-        <button type="button" class="nav-btn" id="nav-all" aria-label="Volver a la vista completa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg></button>
+      <div class="nav" id="nav">
+        <button type="button" class="nav-btn" id="nav-in" aria-label="Acercar"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg></button>
+        <button type="button" class="nav-btn" id="nav-out" aria-label="Alejar"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg></button>
+        <button type="button" class="nav-btn" id="nav-rot" aria-label="Girar la vista"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4" /></svg></button>
+        <button type="button" class="nav-btn" id="nav-all" aria-label="Volver a la vista completa"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg></button>
       </div>
       <div class="dock" id="dock">
         <p class="run-hint" id="run-hint" hidden></p>
@@ -101,17 +113,10 @@
             <p class="money money-left"><span class="money-k">Queda</span> <span class="money-v" id="hud-left"></span></p>
             <p class="money money-spent"><span class="money-k">Gastado</span> <span class="money-v" id="hud-spent"></span></p>
           </div>
-          <div class="modes" role="group" aria-label="Qué hacen el scroll y los gestos">
-            <div class="mode-switch">
-              <button type="button" class="mode-btn" id="mode-time" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7" /><path d="M12 9v4l2.5 2M10 3h4" /></svg><span>Tiempo</span></button>
-              <button type="button" class="mode-btn" id="mode-explore" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" /></svg><span>Explorar</span></button>
-            </div>
-            <p class="mode-cap" id="mode-cap"></p>
-          </div>
         </div>
         <div class="hud-bar" aria-hidden="true"><span id="hud-bar-fill"></span></div>
         <div class="tl" id="tl">
-          <button type="button" class="tl-play" id="tl-play" aria-label="Reproducir"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z" /></svg></button>
+          <button type="button" class="tl-play" id="tl-play" aria-label="Reproducir"><svg width="22" height="22" class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg><svg width="22" height="22" class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z" /></svg></button>
           <div class="tl-body">
             <div class="tl-hitos" id="tl-hitos"></div>
             <div class="tl-track" id="tl-track" role="slider" tabindex="0" aria-label="Fecha del calendario" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0">
@@ -119,13 +124,24 @@
               <div class="tl-ticks" id="tl-ticks" aria-hidden="true"></div>
               <span class="tl-head" id="tl-head" aria-hidden="true"></span>
             </div>
-            <div class="tl-ends" aria-hidden="true"><span id="tl-start"></span><span id="tl-end"></span></div>
           </div>
           <div class="tl-tip" id="tl-tip" hidden></div>
         </div>
       </div>
+      <section class="pick" id="pick" hidden aria-labelledby="pick-title">
+        <div class="pick-head">
+          <h2 class="pick-title" id="pick-title" tabindex="-1">Si compramos 1 por día, desde hoy.</h2>
+          <p class="pick-sub">¿Cuándo creés que se usaría toda la plata?</p>
+        </div>
+        <ul class="cc-list" id="cc-list" aria-label="Cosas para comparar"></ul>
+        <p class="pick-count" id="pick-count" aria-hidden="true"></p>
+      </section>
       <p class="visually-hidden" id="run-live" aria-live="polite"></p>
-      <section class="end" id="end" hidden aria-labelledby="end-title"></section>
+      <section class="result" id="end" hidden aria-labelledby="end-title"></section>
+      <dialog class="info-dlg" id="info-dlg" aria-labelledby="info-title">
+        <button type="button" class="btn btn-small btn-icon about-close" id="info-close" aria-label="Cerrar">×</button>
+        <div id="info-body"></div>
+      </dialog>
     </div>
 
     <script type="module" src="/src/main.js"></script>

@@ -14,8 +14,9 @@
 // un tope fijo (según el tamaño de la pantalla).
 
 import * as THREE from 'three';
-import { loadModel, GROUND_COLOR } from './models.js';
-import { glyphAtlas, monthAtlas, GLYPH_ADVANCE, MONTH_ASPECT } from './glyphs.js';
+import { loadModel, modelColor, GROUND_COLOR } from './models.js';
+import { glyphAtlas, monthAtlas, MONTH_ASPECT, GLYPH_FN, digitWidths, digitOffsets } from './glyphs.js';
+import { INK, PAD, ACCENT, SHADOW, addPaperLights, softRectTexture } from './look.js';
 import { LAYOUT, MONTH_W, YEAR_W, YEAR_H, YEAR_PX, YEAR_PZ } from '../lib/calendar.js';
 
 const MAX_DPR = 2;
@@ -25,9 +26,9 @@ const MAX_ANIMATED = 90;
 const DROP_CAP = MAX_ANIMATED * 2;
 const RING_GAP_MS = 220;
 const RING_MS = 760;
-const ACCENT = '#ff4f1f';
-const INK = '#3b3a40';
-const PAD = '#f3a15c'; // el cuadrado de color de cada día comprado
+// Las primeras figuras de la corrida se arman pieza por pieza, como en la portada; las demás caen.
+const INTRO_UNITS = 6;
+const ASM_MS = 1300;
 const PRE = '#ebe9e3'; // días anteriores a hoy
 const AXIS = 0.816496580927726; // largo en pantalla de una celda (cualquiera de los dos ejes)
 const ELEV = Math.asin(1 / Math.sqrt(3)); // isométrico
@@ -38,6 +39,12 @@ const PX_MONTHS = 1.0; // por debajo: solo años
 const PX_MODELS_IN = [4.5, 6.5]; // los modelos aparecen entre estos dos
 const PX_DETAIL = [9, 15]; // versión simple → detallada
 const PX_LABEL = 4.5; // carteles de los hitos
+const PX_SHADOW = [12, 18]; // la sombra proyectada aparece cuando las figuras ya se ven con detalle
+
+// Sombra proyectada (como en la portada): un solo mapa, que sigue a lo que se ve en pantalla y
+// solo se recalcula en los cuadros en que algo cambia. De lejos no se usa: no se vería y costaría.
+const SUN_DIR = [-0.8, 1.3, 0.62]; // desde el suelo hacia el sol: de atrás a la izquierda, bastante alto
+const CAST_SHADOW = '#2f3a52';
 
 export function webglAvailable() {
   try {
@@ -96,14 +103,58 @@ float bayer4(vec2 p) {
 }
 `;
 
+
+// Armado pieza por pieza (como en la portada), por figura: instanceBuild va de 0 a 1.
+const ASM_HEAD = /* glsl */ `
+attribute vec3 aPivot;
+attribute vec4 aAnim;
+attribute float instanceBuild;
+uniform float uAsm;
+vec3 rotY(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z); }
+float backOut(float t) { float u = t - 1.0; return 1.0 + 2.70158 * u * u * u + 1.70158 * u * u; }
+`;
+const ASM_ANIM = /* glsl */ `
+float kc = clamp((instanceBuild - aAnim.x * 0.55) / 0.45, 0.0, 1.0);
+float away = (1.0 - kc) * (1.0 - kc);
+float aSc = backOut(kc);
+float aAng = aAnim.w * away;
+vec3 aOff = vec3(aAnim.y * 0.3, 0.8, aAnim.z * 0.3) * away * uAsm;
+`;
+const ASM_POS = 'vec3 transformed = aPivot + rotY(position - aPivot, aAng) * aSc + aOff;';
+
+/** Sombra proyectada de las figuras que se están armando: las piezas también hacen sombra. */
+function assemblyDepthMaterial(asm) {
+  const m = new THREE.MeshDepthMaterial();
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uAsm = asm;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${ASM_HEAD}`)
+      .replace('#include <begin_vertex>', `${ASM_ANIM}\n${ASM_POS}`);
+  };
+  m.customProgramCacheKey = () => 'unit-asm-depth';
+  return m;
+}
+
 /** Lambert con colores por vértice, pintura por figura (paletas A y B) y fundido punteado. */
-function unitMaterial(invert, vis) {
+function unitMaterial(invert, vis, asm = null) {
   const m = new THREE.MeshLambertMaterial({ vertexColors: true });
+  // Las figuras no tienen caras de abajo (la cámara nunca las ve). Por defecto three.js dibuja
+  // solo las caras de atrás en el mapa de sombras, y sin piso la sombra queda con un hueco pegado
+  // a la figura: se dibujan las dos caras.
+  m.shadowSide = THREE.DoubleSide;
   m.userData.fade = { value: 1 };
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uFade = m.userData.fade;
     shader.uniforms.uVis = vis;
     shader.uniforms.uFadeInvert = { value: invert ? 1 : 0 };
+    if (asm) {
+      // solo la versión detallada: tiene las piezas (la simple, de lejos, no se arma)
+      shader.uniforms.uAsm = asm;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${ASM_HEAD}`)
+        .replace('#include <beginnormal_vertex>', `${ASM_ANIM}\nvec3 objectNormal = rotY(vec3(normal), aAng);\n#ifdef USE_TANGENT\nvec3 objectTangent = vec3(tangent.xyz);\n#endif`)
+        .replace('#include <begin_vertex>', `${ASM_POS}\n#ifdef USE_ALPHAHASH\nvPosition = vec3(position);\n#endif`);
+    }
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <color_pars_vertex>',
@@ -133,17 +184,18 @@ if (uFadeInvert > 0.5) { if (bd < uFade) discard; } else { if (bd >= uFade) disc
 if (bayer4(gl_FragCoord.xy + vec2(2.0, 1.0)) >= uVis) discard;`
       );
   };
-  m.customProgramCacheKey = () => 'unit';
+  m.customProgramCacheKey = () => (asm ? 'unit-asm' : 'unit');
   return m;
 }
 
 /** Sombra de contacto: se queda en el suelo aunque la figura esté cayendo, y se aclara con la altura. */
 function shadowMaterial(map, vis) {
-  const m = new THREE.MeshBasicMaterial({ map, color: '#5b5548', transparent: true, opacity: 0.3, depthWrite: false });
+  const m = new THREE.MeshBasicMaterial({ map, color: SHADOW, transparent: true, opacity: 0.3, depthWrite: false });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uVis = vis;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vLift;')
+      .replace('#include <common>', '#include <common>\nvarying float vLift;\nattribute float instanceBuild;\nvarying float vBuild;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBuild = instanceBuild;')
       .replace(
         '#include <project_vertex>',
         `vec4 mvPosition = vec4(transformed, 1.0);
@@ -159,26 +211,11 @@ mvPosition = modelViewMatrix * mvPosition;
 gl_Position = projectionMatrix * mvPosition;`
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vLift;\nuniform float uVis;')
-      .replace('#include <alphamap_fragment>', `#include <alphamap_fragment>\ndiffuseColor.a *= uVis * (1.0 - 0.8 * clamp(vLift / ${DROP_HEIGHT.toFixed(2)}, 0.0, 1.0));`);
+      .replace('#include <common>', '#include <common>\nvarying float vLift;\nvarying float vBuild;\nuniform float uVis;')
+      .replace('#include <alphamap_fragment>', `#include <alphamap_fragment>\ndiffuseColor.a *= uVis * smoothstep(0.3, 0.95, vBuild) * (1.0 - 0.8 * clamp(vLift / ${DROP_HEIGHT.toFixed(2)}, 0.0, 1.0));`);
   };
   m.customProgramCacheKey = () => 'contact-shadow';
   return m;
-}
-
-function softRectTexture() {
-  const s = 64;
-  const c = document.createElement('canvas');
-  c.width = c.height = s;
-  const g = c.getContext('2d');
-  g.filter = 'blur(7px)';
-  g.fillStyle = '#fff';
-  g.beginPath();
-  g.roundRect(13, 13, s - 26, s - 26, 10);
-  g.fill();
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.NoColorSpace;
-  return t;
 }
 
 // ——— Piso de papel ———
@@ -224,6 +261,7 @@ uniform vec3 uInk;
 uniform vec3 uPad;
 uniform vec3 uPre;
 uniform vec3 uAccent;
+uniform float uModels; // 0..1: cuánto se ven las figuras (con ellas a la vista, no hace falta el cuadrado)
 `;
 
 const MONTH_VERT = /* glsl */ `
@@ -248,19 +286,6 @@ void main() {
   vFrac = slots > 0.5 ? clamp(uBought - fk, 0.0, slots) / slots : 0.0;
   vPre = s + dim <= 0.0 ? 1.0 : 0.0;
   vM = aMonth;
-}
-`;
-
-const GLYPH_FN = /* glsl */ `
-uniform sampler2D uGlyphs;
-// g: coordenadas dentro de la caja cuadrada de la letra (0..1, y hacia arriba)
-float glyph(float idx, vec2 g, vec2 dgx, vec2 dgy) {
-  if (g.x < 0.0 || g.x > 1.0 || g.y < 0.0 || g.y > 1.0) return 0.0;
-  float c = mod(idx, 6.0);
-  float r = floor(idx / 6.0);
-  vec2 uv = vec2((c + g.x) / 6.0, 1.0 - (r + 1.0 - g.y) / 3.0);
-  vec2 k = vec2(1.0 / 6.0, 1.0 / 3.0);
-  return textureGrad(uGlyphs, uv, dgx * k, dgy * k).r;
 }
 `;
 
@@ -315,7 +340,7 @@ void main() {
     if (slot && d / uPeriod < uBought - 0.5) {
       float sd = box(f, 0.06, 0.05);
       float aa = max(fwidth(sd), 1e-4);
-      col = mix(col, uPad, 1.0 - smoothstep(-aa, aa, sd));
+      col = mix(col, uPad, (1.0 - smoothstep(-aa, aa, sd)) * (1.0 - uModels));
     }
     // número del día, arriba a la izquierda
     float na = smoothstep(15.0, 24.0, uPx);
@@ -325,11 +350,7 @@ void main() {
       vec2 o = vec2(f.x - 0.06, 0.05 + hN - f.y) / hN; // y hacia arriba
       float t;
       vec2 gx = dpx / hN, gy = -dpy / hN;
-      if (n < 10.0) {
-        t = glyph(n, o + vec2(0.2, 0.0), gx, gy);
-      } else {
-        t = max(glyph(floor(n / 10.0), o + vec2(0.2, 0.0), gx, gy), glyph(mod(n, 10.0), o + vec2(0.2 - ${GLYPH_ADVANCE.toFixed(2)}, 0.0), gx, gy));
-      }
+      t = number2(n, o, gx, gy);
       col = mix(col, uInk, t * na * (d < 0.0 ? 0.4 : 0.8));
     }
     // hoy: borde de color
@@ -545,12 +566,36 @@ export class Stage {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: window.devicePixelRatio < 2, powerPreference: 'default', alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_DPR));
     this.renderer.setClearColor(GROUND_COLOR);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false; // se pide a mano, solo cuando hay sombra a la vista
+    this.renderer.shadowMap.needsUpdate = true;
 
     this.scene = new THREE.Scene();
-    this.scene.add(new THREE.HemisphereLight('#fffdf8', '#d9d4c4', 1.6));
-    const sun = new THREE.DirectionalLight('#fff3e2', 2.3);
-    sun.position.set(0.4, 1, 0.8); // la cara de arriba es la más clara, la izquierda (+z) media, la derecha (+x) la más oscura
-    this.scene.add(sun);
+    const sun = addPaperLights(this.scene);
+    this.sun = sun;
+    this.sunDir = new THREE.Vector3(...SUN_DIR).normalize();
+    this.sunRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), this.sunDir).normalize();
+    this.sunUp = new THREE.Vector3().crossVectors(this.sunDir, this.sunRight).normalize();
+    sun.position.copy(this.sunDir).multiplyScalar(30);
+    sun.castShadow = true;
+    const big = (window.innerWidth || 0) * (window.innerHeight || 0) > 520000;
+    this.shadowSize = big ? 2048 : 1024;
+    sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
+    sun.shadow.normalBias = 0.02;
+    sun.shadow.radius = 2.5;
+    sun.shadow.intensity = 0;
+    this.scene.add(sun.target);
+    this.shadowsEnabled = true; // interruptor (para medir el costo)
+    this.shadowR = 0;
+    // plano transparente que recibe la sombra, apenas encima del calendario impreso
+    this.catcher = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ color: CAST_SHADOW, opacity: 0.3, depthWrite: false }));
+    this.catcher.position.y = 0.006;
+    this.catcher.renderOrder = -2.5;
+    this.catcher.receiveShadow = true;
+    this.catcher.frustumCulled = false;
+    this.catcher.visible = false;
+    this.scene.add(this.catcher);
 
     this.ground = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1),
@@ -576,8 +621,10 @@ export class Stage {
     c0.updateMatrixWorld();
     this.viewRot0 = new THREE.Matrix4().extractRotation(c0.matrixWorldInverse);
 
+    this.vis = { value: 0 }; // cuánto se ven las figuras
     // Uniformes compartidos por las capas impresas.
     this.u = {
+      uModels: this.vis,
       uPx: { value: 10 },
       uBought: { value: 0 },
       uDay: { value: 0 },
@@ -593,7 +640,7 @@ export class Stage {
     this.glyphTex = glyphAtlas();
     this.monthTex = monthAtlas();
     const flat = { transparent: true, depthWrite: false, side: THREE.DoubleSide };
-    this.monthMat = new THREE.ShaderMaterial({ ...flat, uniforms: { ...this.u, uGlyphs: { value: this.glyphTex } }, vertexShader: MONTH_VERT, fragmentShader: MONTH_FRAG });
+    this.monthMat = new THREE.ShaderMaterial({ ...flat, uniforms: { ...this.u, uGlyphs: { value: this.glyphTex }, uDW: { value: digitWidths().w }, uDGap: { value: digitWidths().gap } }, vertexShader: MONTH_VERT, fragmentShader: MONTH_FRAG });
     this.yearMat = new THREE.ShaderMaterial({ ...flat, uniforms: this.u, vertexShader: YEAR_VERT, fragmentShader: YEAR_FRAG });
     const labelUniforms = (tex, h, aspect, advance, cols, rows) => ({
       uTex: { value: tex },
@@ -610,11 +657,12 @@ export class Stage {
       uCols: { value: cols },
       uRows: { value: rows },
     });
-    this.yearLabMat = new THREE.ShaderMaterial({ ...flat, uniforms: labelUniforms(this.glyphTex, 6.4, 1, GLYPH_ADVANCE, 6, 3), vertexShader: LABEL_VERT, fragmentShader: LABEL_FRAG });
+    this.yearLabMat = new THREE.ShaderMaterial({ ...flat, uniforms: labelUniforms(this.glyphTex, 6.4, 1, 1, 6, 3), vertexShader: LABEL_VERT, fragmentShader: LABEL_FRAG });
     this.monthLabMat = new THREE.ShaderMaterial({ ...flat, uniforms: labelUniforms(this.monthTex, 1.9, MONTH_ASPECT, 0, 2, 6), vertexShader: LABEL_VERT, fragmentShader: LABEL_FRAG });
 
-    this.vis = { value: 0 };
-    this.nearMat = unitMaterial(false, this.vis);
+    this.asmScale = { value: 1 };
+    this.nearMat = unitMaterial(false, this.vis, this.asmScale);
+    this.asmDepthMat = assemblyDepthMaterial(this.asmScale);
     this.lodMat = unitMaterial(true, this.vis);
     this.shadowTex = softRectTexture();
     this.shadowMat = shadowMaterial(this.shadowTex, this.vis);
@@ -904,14 +952,25 @@ export class Stage {
     this.c = cal;
     const model = loadModel(modelKey);
     this.model = model;
+    // la primera figura (la de hoy) también se arma pieza por pieza, cuando se cargue
+    this.introPending = true;
+    // de lejos, los días comprados y los meses llenos se pintan con el color del modelo
+    this.u.uPad.value.copy(modelColor(modelKey));
     // Escala: la huella entra en la celda (el hospital, más grande). Origen al centro de la huella.
     const s = model.fit / Math.max(model.size.x, model.size.z);
     for (const g of [model.geometry, model.lodGeometry]) {
       g.translate(-model.center.x, 0, -model.center.z);
       g.scale(s, s, s);
     }
+    // los centros de las piezas se mueven igual que la figura
+    const piv = model.geometry.attributes.aPivot;
+    if (piv) {
+      for (let i = 0; i < piv.count; i++) piv.setXYZ(i, (piv.getX(i) - model.center.x) * s, piv.getY(i) * s, (piv.getZ(i) - model.center.z) * s);
+      piv.needsUpdate = true;
+    }
     model.sx = model.size.x * s;
     model.sz = model.size.z * s;
+    this.asmScale.value = Math.max(model.sx, model.sz) / 0.75; // los saltos de las piezas, a la escala de la figura
     this.modelH = model.height * s;
     const u = this.u;
     u.uPeriod.value = cal.period;
@@ -982,11 +1041,12 @@ export class Stage {
         const str = String(y);
         // los años siguientes se cuentan desde el primero, para que "cada 5" empiece en el inicio
         const rk = yi === 0 ? 10000 : ranks.find((r) => y % r === 0) || 1;
+        const offs = digitOffsets(str); // cada cifra según lo que mide
         for (let j = 0; j < str.length; j++) {
           lab[k * 4] = _cell[0] + LAYOUT.yearPad - 0.25;
           lab[k * 4 + 1] = _cell[1] + LAYOUT.yearHead - 0.9;
           lab[k * 4 + 2] = +str[j];
-          lab[k * 4 + 3] = j;
+          lab[k * 4 + 3] = offs[j];
           rank[k] = rk;
           k++;
         }
@@ -1045,6 +1105,15 @@ export class Stage {
     const sg = new THREE.PlaneGeometry(model.sx * 1.12 + 0.1, model.sz * 1.12 + 0.1);
     sg.rotateX(-Math.PI / 2);
     sg.translate(-0.03, 0.012, -0.05);
+    // progreso del armado de cada figura (1 = armada); lo comparten la figura y su sombra
+    const build = new THREE.InstancedBufferAttribute(new Float32Array(cap).fill(1), 1);
+    build.setUsage(THREE.DynamicDrawUsage);
+    model.geometry.setAttribute('instanceBuild', build);
+    sg.setAttribute('instanceBuild', build);
+    this.buildAttr = build;
+    this.aI = new Int32Array(INTRO_UNITS * 2);
+    this.aT = new Float64Array(INTRO_UNITS * 2);
+    this.an = 0;
     const shadow = new THREE.InstancedMesh(sg, this.shadowMat, cap);
     shadow.instanceMatrix = mesh.instanceMatrix;
     shadow.renderOrder = -2;
@@ -1053,6 +1122,9 @@ export class Stage {
       m.count = 0;
       this.cal.add(m);
     }
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.customDepthMaterial = this.asmDepthMat;
     this.mesh = mesh;
     this.lod = lod;
     this.shadow = shadow;
@@ -1170,10 +1242,11 @@ export class Stage {
     const old = this.mesh.count;
     const arr = this.mesh.instanceMatrix.array;
     if (n < old) {
-      // hacia atrás: las que quedan aterrizan de golpe
+      // hacia atrás: las que quedan aterrizan de golpe y las que se armaban quedan armadas
       for (let k = 0; k < this.dn; k++) arr[this.dI[k] * 16 + 13] = 0;
       if (this.dn) this.markRange(0, old - 1);
       this.dn = 0;
+      this.finishAssembly();
     } else if (n > old && animate && this.bought > prev) {
       const from = Math.max(old, n - MAX_ANIMATED);
       const add = n - from;
@@ -1185,13 +1258,24 @@ export class Stage {
         this.dT.copyWithin(0, drop, this.dn);
         this.dn -= drop;
       }
+      let dropped = false;
       for (let i = from; i < n; i++) {
+        if (this.ks[i] < INTRO_UNITS && !this.snap && this.an < this.aI.length) {
+          // de las primeras: se arma pieza por pieza en su lugar
+          this.aI[this.an] = i;
+          this.aT[this.an] = now;
+          this.an++;
+          this.buildAttr.array[i] = 0;
+          this.markBuild(i);
+          continue;
+        }
         this.dI[this.dn] = i;
         this.dT[this.dn] = now;
         this.dn++;
         arr[i * 16 + 13] = DROP_HEIGHT;
+        dropped = true;
       }
-      this.markRange(from, n - 1);
+      if (dropped) this.markRange(from, n - 1);
     }
     this.mesh.count = this.lod.count = this.shadow.count = n;
   }
@@ -1203,6 +1287,21 @@ export class Stage {
     r.position.set(_cell[0], 0.03, _cell[1]);
     r.userData.t0 = now;
     r.visible = true;
+  }
+
+  /** Deja armadas todas las figuras que se estaban armando. */
+  finishAssembly() {
+    if (!this.buildAttr || !this.an) return;
+    for (let k = 0; k < this.an; k++) {
+      this.buildAttr.array[this.aI[k]] = 1;
+      this.markBuild(this.aI[k]);
+    }
+    this.an = 0;
+  }
+
+  markBuild(i) {
+    this.bMin = Math.min(this.bMin ?? i, i);
+    this.bMax = Math.max(this.bMax ?? i, i);
   }
 
   markRange(a, b) {
@@ -1352,6 +1451,7 @@ export class Stage {
     }
     this.nLoaded = n;
     this.dn = 0;
+    this.finishAssembly();
     const im = this.mesh.instanceMatrix;
     im.clearUpdateRanges();
     im.needsUpdate = true;
@@ -1361,14 +1461,21 @@ export class Stage {
     this.loaded[0] = x0; this.loaded[1] = z0; this.loaded[2] = x1; this.loaded[3] = z1;
     this.hasLoaded = true;
     this.mesh.count = 0;
-    this.applyCount(this.bought, false, 0);
+    if (this.introPending && this.bought > 0 && !this.snap) {
+      // primera carga de la corrida: las que ya están compradas (la de hoy) entran animadas
+      this.introPending = false;
+      this.applyCount(0, true, performance.now());
+    } else {
+      this.introPending = false;
+      this.applyCount(this.bought, false, 0);
+    }
     return true;
   }
 
   // ——— Cuadro a cuadro ———
 
   get animating() {
-    return !!this.ending || this.dn > 0 || this.rings.some((r) => r.visible) || this.cameraMoving();
+    return !!this.ending || this.dn > 0 || this.an > 0 || this.rings.some((r) => r.visible) || this.cameraMoving();
   }
 
   cameraMoving() {
@@ -1413,6 +1520,30 @@ export class Stage {
       }
       this.dn = keep;
       this.markRange(lo, hi);
+    }
+    // armado de las primeras figuras
+    if (this.mesh && this.an) {
+      const b = this.buildAttr.array;
+      let keep = 0;
+      for (let k = 0; k < this.an; k++) {
+        const i = this.aI[k];
+        const t = (now - this.aT[k]) / ASM_MS;
+        b[i] = i < this.mesh.count ? Math.min(1, Math.max(0, t)) : 1;
+        this.markBuild(i);
+        if (t < 1 && i < this.mesh.count) {
+          this.aI[keep] = i;
+          this.aT[keep] = this.aT[k];
+          keep++;
+        }
+      }
+      this.an = keep;
+    }
+    if (this.buildAttr && this.bMin !== undefined) {
+      const attr = this.buildAttr;
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(this.bMin, this.bMax - this.bMin + 1);
+      attr.needsUpdate = true;
+      this.bMin = this.bMax = undefined;
     }
     if (this.mesh && this.rangeMin !== undefined) {
       const attr = this.mesh.instanceMatrix;
@@ -1501,7 +1632,45 @@ export class Stage {
     }
   }
 
+  /** Acomoda el mapa de sombras a lo que se ve. Devuelve la intensidad (0 = sin sombra). */
+  updateShadow() {
+    const sun = this.sun;
+    const s = this.shadowsEnabled && this.mesh && this.mesh.visible ? smooth(PX_SHADOW[0], PX_SHADOW[1], this.pxPerCell()) * this.vis.value : 0;
+    sun.shadow.intensity = s;
+    this.catcher.visible = s > 0;
+    this.shadowMat.opacity = 0.3 - 0.16 * s; // con sombra proyectada, la de contacto se suaviza
+    if (s <= 0) return 0;
+    // centro: el punto del suelo en el medio de la pantalla; radio: lo que entra en la vista
+    const r = this.rect;
+    this.groundAt(r.left + r.width / 2, r.top + r.height / 2, _g0);
+    _v.set(_g0[1], 0, -_g0[0]); // local (x, z) → mundo (z, −x)
+    const h = this.h, w = h * (this.aspect || 1);
+    let R = Math.hypot(w, h / Math.sin(ELEV)) + this.modelH * 2 + 2;
+    R = Math.pow(1.25, Math.ceil(Math.log(R) / Math.log(1.25))); // en escalones, para que no tiemble al hacer zoom
+    // el centro se ajusta a la grilla de texeles del mapa, para que la sombra no tiemble al mover
+    const texel = (2 * R) / this.shadowSize;
+    const a = _v.dot(this.sunRight), b = _v.dot(this.sunUp);
+    _v.addScaledVector(this.sunRight, Math.round(a / texel) * texel - a).addScaledVector(this.sunUp, Math.round(b / texel) * texel - b);
+    sun.target.position.copy(_v);
+    sun.position.copy(_v).addScaledVector(this.sunDir, R + 12);
+    sun.target.updateMatrixWorld();
+    sun.updateMatrixWorld();
+    const far = 2 * R + 24;
+    if (R !== this.shadowR) {
+      this.shadowR = R;
+      const cam = sun.shadow.camera;
+      cam.left = -R; cam.right = R; cam.top = R; cam.bottom = -R;
+      cam.near = 0.5; cam.far = far;
+      cam.updateProjectionMatrix();
+      sun.shadow.bias = -0.012 / far; // ~1 % de celda, sea cual sea el alcance
+      this.catcher.scale.set(2 * R, 1, 2 * R);
+    }
+    this.catcher.position.set(_v.x, 0.006, _v.z);
+    return s;
+  }
+
   render() {
+    if (this.updateShadow() > 0) this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -1546,6 +1715,9 @@ export class Stage {
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.ground.geometry.dispose();
     this.ground.material.dispose();
+    this.catcher.geometry.dispose();
+    this.catcher.material.dispose();
+    this.asmDepthMat.dispose();
     for (const m of [this.nearMat, this.lodMat, this.shadowMat, this.monthMat, this.yearMat, this.yearLabMat, this.monthLabMat, this.pinMat]) m.dispose();
     for (const t of [this.shadowTex, this.glyphTex, this.monthTex]) t.dispose();
     this.pinGeo.dispose();

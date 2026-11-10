@@ -10,9 +10,9 @@ export function fmtNum(value, decimals = 0) {
   return (neg ? '-' : '') + int + (dec ? ',' + dec : '');
 }
 
-/** G. 96.015.815 */
+/** Gs. 96.015.815 */
 export function fmtGs(value) {
-  return 'G. ' + fmtNum(Math.round(value));
+  return 'Gs. ' + fmtNum(Math.round(value));
 }
 
 /** Monto en palabras: "5,06 billones", "96,0 millones", "8,86 millones", "4.293 millones". */
@@ -32,7 +32,7 @@ export function amountWords(value) {
 }
 
 export function fmtGsWords(value) {
-  return 'G. ' + amountWords(value);
+  return 'Gs. ' + amountWords(value);
 }
 
 export function fmtUsdWords(value) {

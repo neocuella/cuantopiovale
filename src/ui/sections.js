@@ -1,8 +1,7 @@
-// Portada, datos de escala y "Sobre los datos". Todas las cifras salen del modelo.
+// Portada y "Sobre los datos". Todas las cifras salen del modelo.
 
 import { h, setChildren, extLink, $ } from './dom.js';
-import { fmtNum, fmtGs, fmtGsWords, fmtUsdWords, fmtISO } from '../lib/format.js';
-import { scaleFacts } from '../lib/model.js';
+import { fmtNum, fmtGs, fmtGsWords, fmtMillions, fmtISO } from '../lib/format.js';
 import { DATA_FILES } from '../lib/data.js';
 
 export const SOURCE_TYPES = {
@@ -15,70 +14,18 @@ export const SOURCE_TYPES = {
 
 export function renderHero(model) {
   const doc = model.components[0]?.document || '';
-  setChildren($('#fig-gs'), fmtGsWords(model.total));
-  setChildren($('#fig-full'), `${fmtNum(Math.round(model.total))} guaraníes`);
-  setChildren($('#fig-usd'), `≈ ${fmtUsdWords(model.totalUSD)}`);
+  // el monto en dólares, sin decimales ("US$ 813 millones"), y el monto completo en guaraníes
+  setChildren($('#fig-usd'), `US$ ${fmtMillions(model.totalUSD)}`);
+  // el asterisco lleva a la nota de abajo, que empieza con el mismo asterisco
+  setChildren($('#fig-gs'), fmtGs(model.total), h('span', { class: 'ast', 'aria-hidden': 'true' }, '*'));
   setChildren(
     $('#lede'),
+    h('span', { class: 'ast', 'aria-hidden': 'true' }, '* '),
     'Es el ',
     h('strong', {}, 'perjuicio patrimonial preliminar estimado'),
-    ' en el caso ueno, según la imputación fiscal. ',
-    h('span', { class: 'muted' }, `Fuente: ${doc}, citada por la prensa.`)
+    ' en el caso ueno, según la imputación fiscal.'
   );
-}
-
-export function renderFacts(model) {
-  const f = scaleFacts(model);
-  const cards = [];
-  if (f.salario) {
-    cards.push(
-      fact(
-        `${fmtNum(f.salario.years)} años`,
-        'de sueldo mínimo',
-        `Es lo que tendría que trabajar una persona que gana el salario mínimo (${fmtGs(f.salario.monthly)} por mes, sin aguinaldo) para juntar esa plata sin gastar nada.`
-      )
-    );
-  }
-  if (f.billetes) {
-    const b = f.billetes;
-    cards.push(
-      fact(
-        `${fmtNum(b.tonnes, 1)} toneladas`,
-        `en billetes de US$ ${b.denomination}`,
-        `Son ${fmtNum(b.bills)} billetes. Apilados, forman una torre de ${fmtNum(b.meters)} metros: ${fmtNum(b.petras, 1)} veces la Petra Tower (${fmtNum(b.petraHeight)} m), el edificio más alto del país.`,
-        petraBars(b)
-      )
-    );
-  }
-  if (f.habitante) {
-    cards.push(
-      fact(
-        fmtGs(f.habitante.perPerson),
-        'por habitante',
-        `Si se repartiera entre los ${fmtNum(f.habitante.population)} habitantes del país (censo ${f.habitante.asOf}), a cada persona le tocaría eso.`
-      )
-    );
-  }
-  setChildren($('#facts-list'), cards);
-}
-
-function fact(big, unit, text, extra) {
-  return h('li', { class: 'fact' }, h('p', { class: 'fact-big' }, big), h('p', { class: 'fact-unit' }, unit), extra, h('p', { class: 'fact-text' }, text));
-}
-
-/** La pila de billetes al lado de una Petra Tower, en proporción. */
-function petraBars(b) {
-  return h(
-    'div',
-    { class: 'petra-chart', 'aria-hidden': 'true' },
-    h('span', { class: 'bar-col' }, h('span', { class: 'track' }, h('span', { class: 'stack' })), h('span', { class: 'bar-label' }, `pila, ${fmtNum(b.meters)} m`)),
-    h(
-      'span',
-      { class: 'bar-col' },
-      h('span', { class: 'track' }, h('span', { class: 'petra', style: { height: `${(100 / b.petras).toFixed(2)}%` } })),
-      h('span', { class: 'bar-label' }, `Petra Tower, ${fmtNum(b.petraHeight)} m`)
-    )
-  );
+  setChildren($('#fig-src'), `Fuente: ${doc}, citada por la prensa.`);
 }
 
 export function renderAbout(model) {
@@ -133,7 +80,7 @@ export function renderAbout(model) {
         'p',
         {},
         'Tipo de cambio: ',
-        h('strong', {}, `G. ${fmtNum(r.value, 2)} por dólar`),
+        h('strong', {}, `Gs. ${fmtNum(r.value, 2)} por dólar`),
         ` (${r.type}, ${fmtISO(r.date)}). `,
         extLink(r.sourceUrl, 'Fuente: BCP')
       ),
@@ -150,5 +97,5 @@ export function renderAbout(model) {
       )
     )
   );
-  setChildren($('#rate-line'), `Tipo de cambio: G. ${fmtNum(r.value, 2)} por dólar, BCP, ${fmtISO(r.date)}.`);
+  setChildren($('#rate-line'), `Tipo de cambio: Gs. ${fmtNum(r.value, 2)} por dólar, BCP, ${fmtISO(r.date)}.`);
 }

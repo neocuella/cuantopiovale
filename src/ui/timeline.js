@@ -5,14 +5,10 @@ import { h, setChildren } from './dom.js';
 import { fmtDate } from '../lib/format.js';
 
 const DAY_MS = 86400000;
-const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 export function createTimeline(els, { start, totalDays, hitos, onSeek, onHito }) {
-  const { track, ticks, fill, head, hitosEl, startEl, endEl, tip } = els;
+  const { track, ticks, fill, head, hitosEl, tip } = els;
   const end = new Date(start.getTime() + totalDays * DAY_MS);
-  const short = (d) => `${d.getUTCDate()} ${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-  startEl.textContent = short(start);
-  endEl.textContent = short(end);
   track.setAttribute('aria-valuemax', String(totalDays));
 
   const pct = (day) => `${((100 * day) / totalDays).toFixed(4)}%`;
@@ -47,10 +43,10 @@ export function createTimeline(els, { start, totalDays, hitos, onSeek, onHito })
         out.push(h('span', { class: major ? 'tick major' : 'tick', style: { left: pct(d) } }, major ? h('span', { class: 'tick-l' }, String(y)) : null));
       }
     }
-    // sin etiquetas pegadas a las fechas de los extremos
+    // sin etiquetas cortadas en los bordes de la barra (media etiqueta de aire)
+    const room = (100 * 16) / w;
     for (const t of out) {
       const left = parseFloat(t.style.left);
-      const room = (100 * 46) / w;
       if ((left < room || left > 100 - room) && t.firstChild) t.firstChild.remove();
     }
     setChildren(ticks, out);

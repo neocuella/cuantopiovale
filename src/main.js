@@ -1,98 +1,93 @@
-import './styles.css';
 import { model } from './lib/data.js';
 import { runFor, hitosFor, todayUTC, addDays } from './lib/model.js';
 import { fmtNum, fmtGsWords, fmtDate, fmtDateShort, fmtPeriod, unitsLabel } from './lib/format.js';
 import { stateAt, progressForDay } from './lib/timeline.js';
 import { buildCalendar } from './lib/calendar.js';
 import { runSeconds } from './lib/config.js';
-import { h, $, setChildren, capitalize } from './ui/dom.js';
-import { renderHero, renderFacts, renderAbout } from './ui/sections.js';
-import { buildEndCard } from './ui/endcard.js';
+import { h, $, setChildren } from './ui/dom.js';
+import { renderHero, renderAbout } from './ui/sections.js';
+import { buildResult, buildDetails } from './ui/endcard.js';
 import { createTimeline } from './ui/timeline.js';
+import { createPicker } from './ui/picker.js';
 import { Stepper, LEVELS } from './ui/stepper.js';
+import { SITE_NAME, itemPath, itemIdFromPath } from './lib/share.js';
 
 const items = model.items.filter((i) => i.enabled && i.usedCount > 0);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const sidePanel = window.matchMedia('(min-width: 900px) and (min-aspect-ratio: 1/1)');
 let hasWebGL = false;
 let stage = null; // se crea la primera vez que hace falta
+let hero = null; // la figura de la portada
 let thumbs = {};
 let selected = items[0];
 let current = null; // corrida en curso
+let picking = false; // las tarjetas están abiertas
 
-// ——— Portada, tarjetas, datos ———
+// ——— Portada y datos ———
 
 renderHero(model);
-renderFacts(model);
 renderAbout(model);
 
+// c/<id>/ (un enlace compartido) o ?item=<id>: esa tarjeta queda marcada al abrir las
+// tarjetas, pero siempre se elige desde ahí; el botón nunca arranca directo con una cosa.
+// ?item= gana porque es el que se actualiza al elegir otra cosa en la misma página.
 const params = new URLSearchParams(location.search);
-const fromUrl = items.find((i) => i.id === params.get('item'));
-if (fromUrl) selected = fromUrl;
+const wantId = params.get('item') || itemIdFromPath(location.pathname);
+selected = items.find((i) => i.id === wantId) || selected;
 
-const cardsEl = $('#cards');
-function renderCards() {
-  setChildren(
-    cardsEl,
-    items.map((item) =>
-      h(
-        'li',
-        {},
-        h(
-          'button',
-          {
-            type: 'button',
-            class: 'card',
-            'data-id': item.id,
-            'aria-pressed': String(item === selected),
-            onclick: () => select(item),
-          },
-          h(
-            'span',
-            { class: 'card-art', 'aria-hidden': 'true' },
-            thumbs[item.model] ? h('img', { src: thumbs[item.model], alt: '' }) : h('span', { class: 'card-emoji' }, item.emoji)
-          ),
-          h('span', { class: 'card-name' }, capitalize(item.name)),
-          h('span', { class: 'card-cost' }, `${fmtGsWords(item.unitCost)} c/u`),
-          item.periodDays !== 1 ? h('span', { class: 'card-period' }, `1 ${fmtPeriod(item.periodDays)}`) : null
-        )
-      )
-    )
-  );
+/** Raíz del sitio, también desde c/<id>/ (las páginas por cosa que arma el build). */
+const siteRoot = new URL(location.pathname.replace(/(?:c\/[^/]+\/?)?(?:index\.html)?$/, ''), location.origin);
+
+const ctaBtn = $('#go-run');
+ctaBtn.addEventListener('click', () => openPicker(selected));
+
+// Los números y meses impresos en el calendario se dibujan una sola vez en una textura: antes hay
+// que esperar a que Geist esté cargada (si tarda o falla, se usa la fuente del sistema).
+const fontReady = Promise.race([
+  document.fonts ? Promise.all([document.fonts.load('700 64px Geist'), document.fonts.load('800 64px Geist')]) : Promise.resolve(),
+  new Promise((r) => setTimeout(r, 2500)),
+]).catch(() => {});
+
+// La figura de la portada se carga después de pintar el texto.
+function heroFallback() {
+  $('#hero-canvas').hidden = true;
+  $('#hero-fallback').hidden = false;
+  setChildren($('#hero-fallback-day'), fmtDateShort(todayUTC()).day);
+  setChildren($('#hero-fallback-emoji'), items[0].emoji);
 }
-
-function select(item) {
-  selected = item;
-  for (const b of cardsEl.querySelectorAll('.card')) b.setAttribute('aria-pressed', String(b.dataset.id === item.id));
-  setChildren($('#start-label'), `Arrancar con ${item.namePlural}`);
-  const url = new URL(location.href);
-  url.searchParams.set('item', item.id);
-  history.replaceState(null, '', url);
-}
-
-renderCards();
-select(selected);
-
-$('#go-picker').addEventListener('click', () => {
-  $('#picker').scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'start' });
-  setTimeout(() => cardsEl.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true }), reducedMotion.matches ? 0 : 500);
-});
-$('#start-run').addEventListener('click', () => openRun(selected));
-
-// Detectar WebGL y dibujar miniaturas sin bloquear la portada.
-(async () => {
-  const { webglAvailable } = await import('./scene/stage.js');
-  hasWebGL = webglAvailable();
-  if (!hasWebGL) return;
+async function startHero() {
+  let HeroStage;
   try {
-    const { renderThumbnails } = await import('./scene/thumbs.js');
-    thumbs = await renderThumbnails(items.map((i) => i.model));
-    renderCards();
-    select(selected);
+    ({ HeroStage } = await import('./scene/hero.js'));
+    await fontReady;
+    hero = new HeroStage($('#hero-canvas'), { items, today: todayUTC(), reducedMotion: reducedMotion.matches });
+    hero.setSuspended(!runEl.hidden);
+    hasWebGL = true;
+    if (import.meta.env.DEV) window.__hero = hero;
   } catch (e) {
-    console.warn('No se pudieron dibujar las miniaturas', e);
+    console.warn('La portada se muestra sin 3D', e);
+    heroFallback();
+    return;
   }
-})();
+  // retratos de las tarjetas, sin apuro
+  (window.requestIdleCallback || ((f) => setTimeout(f, 400)))(() => loadPortraits(), { timeout: 2500 });
+}
+(window.requestIdleCallback || ((f) => setTimeout(f, 30)))(() => startHero(), { timeout: 400 });
+
+let portraitsP = null;
+function loadPortraits() {
+  if (!portraitsP) {
+    portraitsP = (async () => {
+      try {
+        const { renderPortraits } = await import('./scene/thumbs.js');
+        thumbs = await renderPortraits(items.map((i) => i.model));
+        picker.setThumbs(thumbs);
+      } catch (e) {
+        console.warn('No se pudieron dibujar los retratos', e);
+      }
+    })();
+  }
+  return portraitsP;
+}
 
 // ——— La corrida ———
 //
@@ -122,8 +117,75 @@ const playBtn = $('#tl-play');
 const hintEl = $('#run-hint');
 const tipEl = $('#cell-tip');
 const coarse = window.matchMedia('(pointer: coarse)');
-let lastFocus = null;
-let mode = 'time';
+
+// ——— Tarjetas para elegir, sobre el calendario ———
+
+const pickEl = $('#pick');
+const closeBtn = $('#close-run');
+const picker = createPicker({ list: $('#cc-list'), counter: $('#pick-count'), items, onPick: pick, reducedMotion });
+let pickToken = 0;
+
+async function openPicker(focusItem = selected) {
+  const token = ++pickToken;
+  closeRunState();
+  clearHitos();
+  hideHint();
+  hideTip();
+  stage?.cancelEnding();
+  document.body.classList.add('running');
+  hero?.setSuspended(true);
+  runEl.hidden = false;
+  runEl.classList.remove('ended', 'playing', 'from-pick', 'dealing');
+  endEl.hidden = true;
+  closeInfo();
+  picking = true;
+  runEl.classList.add('picking');
+  pickEl.hidden = false;
+  pickEl.classList.remove('leaving');
+  closeBtn.setAttribute('aria-label', 'Volver al inicio');
+  picker.reset();
+  picker.dealIn();
+  picker.focusItem(focusItem.id);
+  picker.updateCounter();
+  loadPortraits();
+  const st = await ensureStage();
+  if (token !== pickToken || !picking) return;
+  runEl.classList.toggle('no-scene', !st);
+  if (st) {
+    // el calendario de hoy, quieto y sin figuras, detrás de las tarjetas
+    st.snap = true;
+    st.prepare(focusItem.model, buildCalendar(focusItem, todayUTC()));
+    st.setMode('time');
+    applyInsets();
+    st.setTime(0, 0, false);
+    runEl.classList.remove('faded');
+  }
+}
+
+function closePicker() {
+  picking = false;
+  pickEl.hidden = true;
+  pickEl.classList.remove('leaving');
+  runEl.classList.remove('picking', 'dealing');
+  closeBtn.setAttribute('aria-label', 'Salir de la simulación');
+}
+
+async function pick(item) {
+  if (!picking || runEl.classList.contains('dealing')) return;
+  const token = pickToken;
+  selected = item;
+  const url = new URL(location.href);
+  url.searchParams.set('item', item.id);
+  history.replaceState(null, '', url);
+  runEl.classList.add('dealing');
+  pickEl.classList.add('leaving');
+  await picker.dealOut(item.id);
+  if (token !== pickToken || !picking) return;
+  closePicker();
+  runEl.classList.add('from-pick');
+  setTimeout(() => runEl.classList.remove('from-pick'), 700);
+  openRun(item);
+}
 
 async function ensureStage() {
   if (stage) return stage;
@@ -134,6 +196,7 @@ async function ensureStage() {
   }
   try {
     const { Stage } = await import('./scene/stage.js');
+    await fontReady;
     stage = new Stage(canvasEl, $('#pins'));
     stage.setHook(tick);
     if (import.meta.env.DEV) window.__stage = stage; // para inspeccionar en desarrollo
@@ -154,13 +217,14 @@ function maxLevelFor(totalDays) {
 }
 
 async function openRun(item) {
-  lastFocus = document.activeElement;
   closeRunState();
+  if (picking) closePicker();
+  hero?.setSuspended(true);
   document.body.classList.add('running');
   runEl.hidden = false;
-  runEl.classList.remove('ended', 'sheet-open');
+  runEl.classList.remove('ended');
   endEl.hidden = true;
-  endEl.classList.remove('expanded');
+  closeInfo();
   clearHitos();
   const st = await ensureStage();
   runEl.classList.toggle('no-scene', !st);
@@ -182,8 +246,8 @@ async function openRun(item) {
     day: -1,
     endShown: false,
     endBuilt: false,
-    autoExplore: false,
-    camTouched: false,
+    autoFree: false, // la cámara quedó libre sola, al terminar
+    camTouched: false, // el visitante movió la cámara: deja de seguir la fecha
     scrubDay: null,
     lastText: {},
     lastLeft: -1,
@@ -210,8 +274,6 @@ async function openRun(item) {
       fill: $('#tl-fill'),
       head: $('#tl-head'),
       hitosEl: $('#tl-hitos'),
-      startEl: $('#tl-start'),
-      endEl: $('#tl-end'),
       tip: $('#tl-tip'),
     },
     {
@@ -221,9 +283,10 @@ async function openRun(item) {
       onSeek: (day, phase) => {
         userTook();
         // mientras se arrastra, la barra no cambia de ancho aunque se cierre la tarjeta
-        if (phase === 'start' && c.endShown) runEl.classList.add('dock-narrow');
-        if (phase === 'end') runEl.classList.remove('dock-narrow');
-        if (phase === 'start' && mode === 'explore' && c.autoExplore && !c.camTouched) setMode('time');
+        if (phase === 'start' && c.autoFree && !c.camTouched) followDate();
+        // los pasos siguientes (scroll, flechas) arrancan desde donde quedó la línea de tiempo
+        c.scrubDay = null;
+        c.pTarget = null;
         setP(progressForDay(day, item), { animate: phase !== 'start' && !reducedMotion.matches });
       },
     }
@@ -231,7 +294,7 @@ async function openRun(item) {
   st.snap = reducedMotion.matches;
   st.prepare(item.model, c.cal);
   st.setHitos(hitos.map((x) => ({ day: x.day, label: x.label })));
-  setMode('time');
+  followDate();
   applyInsets();
   runEl.classList.remove('faded');
 
@@ -343,7 +406,7 @@ function play(auto = false) {
   if (c.p >= 1) setP(0, { animate: true });
   c.pTarget = null;
   c.scrubDay = null;
-  if (mode !== 'time') setMode('time');
+  followDate();
   setPlaying(true);
 }
 
@@ -416,43 +479,42 @@ playBtn.addEventListener('click', () => {
   } else play();
 });
 
-// ——— Modos: tiempo / explorar ———
+// ——— Cámara ———
+// El tiempo se mueve con la línea de abajo (y el teclado). Sobre el calendario, los gestos siempre
+// mueven la cámara. Mientras nadie la toque, la cámara sigue la fecha marcada; apenas el visitante
+// la mueve, queda donde la dejó, hasta que vuelve a tocar ▶.
 
-const modeCap = $('#mode-cap');
-function setMode(m, { auto = false } = {}) {
-  mode = m;
-  runEl.dataset.mode = m;
-  $('#mode-time').setAttribute('aria-pressed', String(m === 'time'));
-  $('#mode-explore').setAttribute('aria-pressed', String(m === 'explore'));
-  $('#nav').hidden = m !== 'explore';
-  const touch = coarse.matches;
-  modeCap.textContent =
-    m === 'time'
-      ? touch
-        ? 'Deslizá arriba o abajo: mueve la fecha'
-        : 'Scroll: mueve la fecha'
-      : touch
-        ? 'Arrastrá, pellizcá y girá con dos dedos'
-        : 'Arrastrá: mover · scroll: zoom · botón derecho: girar';
+/** La cámara vuelve a encuadrar lo transcurrido hasta la fecha marcada. */
+function followDate() {
   if (current) {
-    current.autoExplore = auto;
     current.camTouched = false;
+    current.autoFree = false;
   }
-  hideTip();
-  stage?.setMode(m);
+  stage?.setMode('time');
 }
-$('#mode-time').addEventListener('click', () => {
-  userTook();
-  setMode('time');
+
+/** El visitante tomó la cámara: deja de seguir la fecha. */
+function freeCamera() {
+  if (current) current.camTouched = true;
+  stage?.setMode('explore');
+}
+
+$('#nav-in').addEventListener('click', () => {
+  freeCamera();
+  stage?.zoomStep(0.6);
 });
-$('#mode-explore').addEventListener('click', () => {
-  userTook();
-  setMode('explore');
+$('#nav-out').addEventListener('click', () => {
+  freeCamera();
+  stage?.zoomStep(1 / 0.6);
 });
-$('#nav-in').addEventListener('click', () => stage?.zoomStep(0.6));
-$('#nav-out').addEventListener('click', () => stage?.zoomStep(1 / 0.6));
-$('#nav-rot').addEventListener('click', () => stage?.rotateStep(Math.PI / 2));
-$('#nav-all').addEventListener('click', () => stage?.viewAll());
+$('#nav-rot').addEventListener('click', () => {
+  freeCamera();
+  stage?.rotateStep(Math.PI / 2);
+});
+$('#nav-all').addEventListener('click', () => {
+  freeCamera();
+  stage?.viewAll();
+});
 
 // ——— Gestos sobre la escena ———
 
@@ -462,16 +524,19 @@ let gesture = null;
 canvasEl.addEventListener('wheel', (e) => {
   if (!current || !stage) return;
   e.preventDefault();
-  const now = performance.now();
-  if (mode === 'time') {
-    if (e.ctrlKey) return; // pellizco del trackpad: no hace nada en modo tiempo
-    current.stepper.wheel(e, now);
-  } else {
-    current.camTouched = true;
-    let d = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 400 : 1);
-    const k = e.ctrlKey ? 0.01 : 0.0018;
-    stage.zoomAt(Math.exp(Math.max(-0.5, Math.min(0.5, d * k))), e.clientX, e.clientY);
-  }
+  if (!current.camTouched) freeCamera();
+  const d = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 400 : 1);
+  const k = e.ctrlKey ? 0.01 : 0.0018;
+  stage.zoomAt(Math.exp(Math.max(-0.5, Math.min(0.5, d * k))), e.clientX, e.clientY);
+}, { passive: false });
+
+// Scroll sobre la línea de tiempo: mueve la fecha, de a un día, o de a semanas, meses o años si
+// se hace rápido.
+$('#tl').addEventListener('wheel', (e) => {
+  if (!current?.stepper || !stage) return;
+  e.preventDefault();
+  if (e.ctrlKey) return;
+  current.stepper.wheel(e, performance.now());
 }, { passive: false });
 
 canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -486,8 +551,8 @@ canvasEl.addEventListener('pointerdown', (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() });
   hideTip();
   if (pointers.size === 1) {
-    gesture = { kind: mode === 'explore' ? (e.button === 2 || e.shiftKey ? 'rotate' : 'pan') : 'time', moved: false, vy: 0, lastT: performance.now() };
-  } else if (pointers.size === 2 && mode === 'explore') {
+    gesture = { kind: e.button === 2 || e.shiftKey ? 'rotate' : 'pan', moved: false };
+  } else if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     gesture = { kind: 'pinch', moved: true, d: Math.hypot(b.x - a.x, b.y - a.y), ang: Math.atan2(b.y - a.y, b.x - a.x), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
   }
@@ -496,7 +561,7 @@ canvasEl.addEventListener('pointerdown', (e) => {
 canvasEl.addEventListener('pointermove', (e) => {
   const pt = pointers.get(e.pointerId);
   if (!pt || !gesture || !current) {
-    if (mode === 'explore' && e.pointerType === 'mouse' && !pointers.size) hoverTip(e);
+    if (e.pointerType === 'mouse' && !pointers.size) hoverTip(e);
     return;
   }
   const px = pt.x, py = pt.y;
@@ -504,21 +569,12 @@ canvasEl.addEventListener('pointermove', (e) => {
   pt.y = e.clientY;
   if (!gesture.moved && Math.hypot(pt.x - pt.x0, pt.y - pt.y0) > 6) gesture.moved = true;
   if (!gesture.moved) return;
-  const now = performance.now();
-  if (gesture.kind === 'time') {
-    const dy = pt.y - py;
-    const dt = Math.max(0.004, (now - gesture.lastT) / 1000);
-    gesture.lastT = now;
-    gesture.vy = gesture.vy * 0.6 + (-dy * 1.6 / dt) * 0.4;
-    current.stepper.push(-dy * 1.6, now);
-  } else if (gesture.kind === 'pan') {
-    current.camTouched = true;
+  if (!current.camTouched) freeCamera();
+  if (gesture.kind === 'pan') {
     stage.panBy(px, py, pt.x, pt.y);
   } else if (gesture.kind === 'rotate') {
-    current.camTouched = true;
     stage.rotateBy((pt.x - px) * 0.008);
   } else if (gesture.kind === 'pinch' && pointers.size >= 2) {
-    current.camTouched = true;
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(b.x - a.x, b.y - a.y);
     const ang = Math.atan2(b.y - a.y, b.x - a.x);
@@ -538,11 +594,7 @@ function endPointer(e) {
   if (!pt) return;
   pointers.delete(e.pointerId);
   if (!gesture || !current) return;
-  if (gesture.kind === 'time' && gesture.moved) {
-    current.stepper.release(performance.now() - gesture.lastT < 80 ? gesture.vy : 0);
-    stage?.wake();
-  }
-  if (!gesture.moved && e.type === 'pointerup' && mode === 'explore') showTipAt(e.clientX, e.clientY);
+  if (!gesture.moved && e.type === 'pointerup') showTipAt(e.clientX, e.clientY);
   if (pointers.size === 1 && gesture.kind === 'pinch') {
     // queda un dedo: sigue como arrastre
     gesture = { kind: 'pan', moved: true };
@@ -555,7 +607,7 @@ canvasEl.addEventListener('pointerup', endPointer);
 canvasEl.addEventListener('pointercancel', endPointer);
 canvasEl.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hideTip());
 
-// Fecha de la celda bajo el puntero (explorar).
+// Fecha de la celda bajo el puntero.
 function showTipAt(x, y) {
   const c = current;
   const d = stage?.dayAtPoint(x, y);
@@ -577,7 +629,7 @@ function hoverTip(e) {
   if (hoverRaf) return;
   hoverRaf = requestAnimationFrame(() => {
     hoverRaf = 0;
-    if (mode === 'explore' && !pointers.size) showTipAt(e.clientX, e.clientY);
+    if (!pointers.size) showTipAt(e.clientX, e.clientY);
   });
 }
 function hideTip() {
@@ -585,9 +637,17 @@ function hideTip() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (runEl.hidden) return;
+  if (runEl.hidden || infoDlg.open) return;
   if (e.key === 'Escape') {
     closeRun();
+    return;
+  }
+  if (picking) {
+    // flechas: de tarjeta en tarjeta
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') picker.move(1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') picker.move(-1);
+    else return;
+    e.preventDefault();
     return;
   }
   const c = current;
@@ -630,7 +690,9 @@ function showHint() {
     /* sin almacenamiento: se muestra igual */
   }
   if (seen) return;
-  hintEl.textContent = coarse.matches ? 'Tocá ▶ o deslizá hacia arriba sobre el calendario para mover el tiempo.' : 'Tocá ▶ o hacé scroll sobre el calendario para mover el tiempo, día por día.';
+  hintEl.textContent = coarse.matches
+    ? 'Tocá ▶ o arrastrá la línea de tiempo. Sobre el calendario: arrastrá para mover y pellizcá para acercar.'
+    : 'Tocá ▶ o arrastrá la línea de tiempo. Sobre el calendario: arrastrá para mover y hacé scroll para acercar.';
   hintEl.hidden = false;
   clearTimeout(hintTimer);
   hintTimer = setTimeout(hideHint, 7000);
@@ -689,23 +751,23 @@ function showEnd(noScene = false, fromPlay = false) {
   c.endShown = true;
   if (!c.endBuilt) {
     c.endBuilt = true;
+    const onOther = () => openPicker(c.item);
+    setChildren(endEl, buildResult({ model, item: c.item, run: c.run, noScene, onMore: openInfo, onShare: share, onOther }));
     setChildren(
-      endEl,
-      buildEndCard({
+      infoBody,
+      buildDetails({
         model,
         item: c.item,
         run: c.run,
         hitos: c.hitos,
         thumb: thumbs[c.item.model],
-        noScene,
         onShare: share,
         onReplay: () => {
-          toggleEnd(false);
+          closeInfo();
           setP(0, { animate: true });
           play();
         },
-        onOther: closeRun,
-        onToggle: () => toggleEnd(),
+        onOther,
       })
     );
   }
@@ -714,14 +776,15 @@ function showEnd(noScene = false, fromPlay = false) {
     if (current !== c || !c.endShown) return;
     clearHitos();
     endEl.hidden = false;
-    endEl.classList.toggle('expanded', noScene);
     runEl.classList.add('ended');
-    endEl.scrollTop = 0;
     if (stage && !noScene) {
       applyInsets();
-      if (mode === 'time') {
+      if (!c.camTouched) {
         stage.playEnding(reducedMotion.matches, () => {
-          if (current === c && c.endShown && mode === 'time') setMode('explore', { auto: true });
+          if (current === c && c.endShown && !c.camTouched) {
+            stage.setMode('explore');
+            c.autoFree = true;
+          }
         });
       }
     }
@@ -736,46 +799,46 @@ function hideEnd() {
   if (!c) return;
   c.endShown = false;
   endEl.hidden = true;
-  toggleEnd(false);
+  closeInfo();
   runEl.classList.remove('ended');
   stage?.cancelEnding();
-  if (mode === 'explore' && c.autoExplore && !c.camTouched) setMode('time');
+  if (c.autoFree && !c.camTouched) followDate();
   applyInsets();
 }
 
-/** Le dice a la escena qué partes de la pantalla tapan el encabezado, la barra de abajo y la tarjeta. */
+/** Le dice a la escena qué partes de la pantalla tapan el encabezado (o el resultado) y la barra de abajo. */
 function applyInsets() {
   if (!stage || runEl.hidden) return;
   const H = runEl.offsetHeight || window.innerHeight;
-  const W = runEl.offsetWidth || window.innerWidth;
   const runTop = runEl.getBoundingClientRect().top;
-  let top = $('#hud-top').getBoundingClientRect().bottom - runTop;
   const ended = !endEl.hidden;
-  // En el celular, al final, el encabezado se oculta y arriba solo quedan los botones de exploración.
+  // al final, el bloque del resultado reemplaza al encabezado
+  let top = (ended ? endEl : $('#hud-top')).getBoundingClientRect().bottom - runTop;
   const navEl = $('#nav');
-  if (!sidePanel.matches && navEl && !navEl.hidden) {
+  if (ended && navEl && !navEl.hidden && navEl.getBoundingClientRect().top < top) {
     top = Math.max(top, navEl.getBoundingClientRect().bottom - runTop);
   }
-  let b = dockEl.offsetHeight + 8;
-  let r = 0;
-  if (ended && sidePanel.matches) r = endEl.offsetWidth / W;
-  else if (ended) {
-    runEl.style.setProperty('--sheet-h', `${endEl.offsetHeight}px`);
-    b += endEl.offsetHeight;
-  }
-  stage.setInsets({ t: Math.min(0.35, (top + 6) / H), b: Math.min(0.7, b / H), l: 0, r });
+  const b = dockEl.offsetHeight + 8;
+  stage.setInsets({ t: Math.min(0.5, (top + 6) / H), b: Math.min(0.5, b / H), l: 0, r: 0 });
 }
 
-function toggleEnd(open = !endEl.classList.contains('expanded')) {
-  endEl.classList.toggle('expanded', open);
-  runEl.classList.toggle('sheet-open', open && !sidePanel.matches);
-  const btn = $('#end-more');
-  if (btn) {
-    btn.setAttribute('aria-expanded', String(open));
-    setChildren(btn.querySelector('.end-more-label'), open ? 'Menos detalle' : 'Ver detalle y fuentes');
-  }
-  if (!open) endEl.scrollTop = 0;
+// ——— «Más info»: el detalle del resultado, en una ventana aparte ———
+
+const infoDlg = $('#info-dlg');
+const infoBody = $('#info-body');
+function openInfo() {
+  if (infoDlg.open) return;
+  userTook();
+  infoDlg.showModal();
+  infoDlg.scrollTop = 0;
 }
+function closeInfo() {
+  if (infoDlg.open) infoDlg.close();
+}
+$('#info-close').addEventListener('click', closeInfo);
+infoDlg.addEventListener('click', (e) => {
+  if (e.target === infoDlg) closeInfo();
+});
 
 /** Limpia lo que queda de una corrida anterior. */
 function closeRunState() {
@@ -789,6 +852,10 @@ function closeRunState() {
 }
 
 function closeRun() {
+  pickToken++;
+  closePicker();
+  picker.reset();
+  runEl.classList.remove('from-pick');
   closeRunState();
   if (stage) {
     stage.pause();
@@ -799,22 +866,22 @@ function closeRun() {
   hideTip();
   runEl.hidden = true;
   endEl.hidden = true;
+  closeInfo();
   document.body.classList.remove('running');
-  $('#picker').scrollIntoView({ block: 'start' });
-  const card = cardsEl.querySelector('[aria-pressed="true"]');
-  (card || lastFocus)?.focus({ preventScroll: true });
+  hero?.setSuspended(false);
+  ctaBtn.focus({ preventScroll: true });
 }
 
 async function share() {
   const c = current;
   if (!c) return;
-  const url = new URL(location.origin + location.pathname);
-  url.searchParams.set('item', c.item.id);
+  // c/<id>/ tiene su propia vista previa (título e imagen de esa cosa) en WhatsApp, X, etc.
+  const url = new URL(itemPath(c.item.id), siteRoot);
   const text = `Según la imputación fiscal del caso ueno, el perjuicio preliminar estimado alcanza para 1 ${c.item.name} ${fmtPeriod(c.item.periodDays)} hasta el ${fmtDate(c.run.end)}.`;
   const status = $('#share-status');
   if (navigator.share) {
     try {
-      await navigator.share({ title: '¿Cuánto es realmente?', text, url: url.href });
+      await navigator.share({ title: SITE_NAME, text, url: url.href });
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return;
@@ -828,25 +895,32 @@ async function share() {
   }
 }
 
-// Hoja de la tarjeta final en el celular: tocar o arrastrar la manija la abre o la cierra.
-{
-  let y0 = null;
-  endEl.addEventListener('pointerdown', (e) => {
-    if (!e.target.closest('.end-grab')) return;
-    y0 = e.clientY;
-  });
-  endEl.addEventListener('pointerup', (e) => {
-    if (y0 === null) return;
-    const dy = e.clientY - y0;
-    y0 = null;
-    if (dy < -30) toggleEnd(true);
-    else if (dy > 30) toggleEnd(false);
-    else if (Math.abs(dy) < 8) toggleEnd();
-  });
-  endEl.addEventListener('pointercancel', () => (y0 = null));
-}
 new ResizeObserver(() => applyInsets()).observe(endEl);
 new ResizeObserver(() => applyInsets()).observe(dockEl);
 window.addEventListener('resize', () => applyInsets());
 $('#close-run').addEventListener('click', closeRun);
-if (import.meta.env.DEV) window.__run = { setP, jumpTo, setMode, userTook, get current() { return current; } };
+if (import.meta.env.DEV) window.__run = { setP, jumpTo, followDate, freeCamera, userTook, get current() { return current; } };
+
+// ——— "Sobre los datos": un panel aparte que se abre con el botón de información o con #sobre ———
+const aboutEl = $('#sobre');
+function openAbout() {
+  if (aboutEl.open) return;
+  aboutEl.showModal();
+  aboutEl.scrollTop = 0;
+  hero?.setSuspended(true);
+}
+$('#about-open').addEventListener('click', openAbout);
+$('#about-close').addEventListener('click', () => aboutEl.close());
+// un clic fuera del panel (en el fondo) lo cierra
+aboutEl.addEventListener('click', (e) => {
+  if (e.target === aboutEl) aboutEl.close();
+});
+aboutEl.addEventListener('close', () => {
+  hero?.setSuspended(!runEl.hidden);
+  if (location.hash === '#sobre') history.replaceState(null, '', location.pathname + location.search);
+  $('#about-open').focus();
+});
+window.addEventListener('hashchange', () => {
+  if (location.hash === '#sobre') openAbout();
+});
+if (location.hash === '#sobre') openAbout();
