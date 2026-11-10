@@ -39,7 +39,9 @@ publican tal cual en `dist/data/`, para que se puedan descargar.
 
 El sitio publicado está en [cuantopiovale.rickovelar.com](https://cuantopiovale.rickovelar.com/),
 servido por Cloudflare (Workers con archivos estáticos, ver [`wrangler.jsonc`](wrangler.jsonc)).
-Para publicar: `npx wrangler deploy` (construye, valida y sube `dist/`).
+Cada cambio en `main` se publica solo con el flujo [`Publicar`](.github/workflows/deploy.yml);
+si los datos no pasan la validación, no se publica nada. También se puede publicar a mano con
+`npx wrangler deploy`. Los pull requests se revisan con el flujo `Validar datos`.
 
 ## Cómo funcionan los datos
 

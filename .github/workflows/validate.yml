@@ -1,0 +1,32 @@
+name: Validar datos
+
+# Revisa los aportes en cada pull request. En main no hace falta: el flujo Publicar
+# construye el sitio, y la construcción valida los datos antes de publicar.
+on:
+  pull_request:
+    paths:
+      - "data/**"
+      - "src/**"
+      - "public/**"
+      - "scripts/**"
+      - "index.html"
+      - "vite.config.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validar CSV y construir el sitio
+        run: npm run build
