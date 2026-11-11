@@ -2491,12 +2491,12 @@ a {
   line-height: 1.4;
   color: var(--muted);
 }
-/* la advertencia: aparte, con una línea del color del sitio */
+/* la advertencia: aparte, en rojo */
 .about-note {
   margin: 0 0 14px;
   padding: 12px 14px;
   background: #fff;
-  border-left: 3px solid var(--accent);
+  color: var(--accent-ink);
   font-size: 0.95rem;
   line-height: 1.5;
 }
