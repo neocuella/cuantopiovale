@@ -1350,16 +1350,35 @@ a {
   font-size: 0.84rem;
   white-space: nowrap;
 }
+/* Brillo al pasar el puntero: dos rayos de luz paralelos y en diagonal (uno ancho y suave, otro
+   fino) que se corren con el puntero. Centro blanco y un borde apenas teñido del color de la
+   categoría, para que se vean también sobre el blanco de la tarjeta. */
 .cc-sheen {
+  --p: calc(var(--mx, 50%) * 0.8 + 4%); /* dónde va el rayo ancho */
+  --tint: color-mix(in srgb, var(--foil) 45%, transparent);
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.35s ease;
   background:
-    radial-gradient(circle at var(--mx, 50%) var(--my, 30%), rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 42%),
-    linear-gradient(115deg, transparent calc(var(--mx, 50%) - 30%), var(--foil) var(--mx, 50%), transparent calc(var(--mx, 50%) + 22%));
+    linear-gradient(
+      105deg,
+      transparent calc(var(--p) + 13%),
+      var(--tint) calc(var(--p) + 14.5%),
+      rgba(255, 255, 255, 0.5) calc(var(--p) + 15.5%),
+      var(--tint) calc(var(--p) + 16.5%),
+      transparent calc(var(--p) + 18%)
+    ),
+    linear-gradient(
+      105deg,
+      transparent calc(var(--p) - 15%),
+      var(--tint) calc(var(--p) - 6%),
+      rgba(255, 255, 255, 0.32) var(--p),
+      var(--tint) calc(var(--p) + 6%),
+      transparent calc(var(--p) + 15%)
+    );
 }
 .cc.tilting .cc-sheen {
   opacity: 1;
@@ -2392,4 +2411,12 @@ a {
   .share-dlg[open] {
     animation: none;
   }
+}
+
+/* El precio de la tarjeta entra entero también cuando las tarjetas son angostas (1024 px). */
+.cc-stats {
+  container-type: inline-size;
+}
+.cc-v {
+  font-size: min(0.95rem, 11cqi);
 }
