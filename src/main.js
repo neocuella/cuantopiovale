@@ -12,6 +12,7 @@ import { createPicker } from './ui/picker.js';
 import { Stepper, LEVELS } from './ui/stepper.js';
 import { SITE_NAME, itemPath, itemIdFromPath, ogImagePath, itemTitle } from './lib/share.js';
 import { openShareSheet } from './ui/sharesheet.js';
+import * as sfx from './lib/sfx.js';
 
 const items = model.items.filter((i) => i.enabled && i.usedCount > 0);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -200,6 +201,8 @@ async function ensureStage() {
     await fontReady;
     stage = new Stage(canvasEl, $('#pins'));
     stage.setHook(tick);
+    stage.onLand = sfx.land;
+    stage.onAssemble = sfx.assemble;
     if (import.meta.env.DEV) window.__stage = stage; // para inspeccionar en desarrollo
     return stage;
   } catch (e) {
@@ -316,6 +319,7 @@ async function openRun(item) {
     }
   );
   st.snap = reducedMotion.matches;
+  sfx.setModel(item.model);
   st.prepare(item.model, c.cal);
   st.setHitos(hitos.map((x) => ({ day: x.day, label: x.label })));
   st.setReveal(c.maxDay);
@@ -629,7 +633,10 @@ function endPointer(e) {
   if (!pt) return;
   pointers.delete(e.pointerId);
   if (!gesture || !current) return;
-  if (!gesture.moved && e.type === 'pointerup') showTipAt(e.clientX, e.clientY);
+  if (!gesture.moved && e.type === 'pointerup') {
+    showTipAt(e.clientX, e.clientY);
+    pokeAt(e.clientX, e.clientY);
+  }
   if (pointers.size === 1 && gesture.kind === 'pinch') {
     // queda un dedo: sigue como arrastre
     gesture = { kind: 'pan', moved: true };
@@ -641,6 +648,29 @@ function endPointer(e) {
 canvasEl.addEventListener('pointerup', endPointer);
 canvasEl.addEventListener('pointercancel', endPointer);
 canvasEl.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hideTip());
+
+// Tocar una figura: salta y suena (cada cosa tiene su sorpresa).
+function pokeAt(x, y) {
+  const k = stage?.unitAtPoint(x, y);
+  if (k === null || k === undefined) return;
+  if (!reducedMotion.matches) stage.hop(k);
+  sfx.poke(k);
+}
+
+// ——— Sonido ———
+
+const soundBtn = $('#nav-sound');
+function syncSound() {
+  const on = sfx.soundOn();
+  soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  soundBtn.setAttribute('aria-label', on ? 'Silenciar' : 'Activar el sonido');
+}
+function toggleSound() {
+  sfx.setSoundOn(!sfx.soundOn());
+  syncSound();
+}
+soundBtn.addEventListener('click', toggleSound);
+syncSound();
 
 // Fecha de la celda bajo el puntero.
 function showTipAt(x, y) {
@@ -678,6 +708,10 @@ document.addEventListener('keydown', (e) => {
   if (runEl.hidden || document.querySelector('dialog[open]')) return; // Más info, compartir
   if (e.key === 'Escape') {
     closeRun();
+    return;
+  }
+  if ((e.key === 'm' || e.key === 'M') && !e.metaKey && !e.ctrlKey && !e.altKey && !(e.target instanceof HTMLInputElement)) {
+    toggleSound();
     return;
   }
   if (picking) {
@@ -815,6 +849,7 @@ function showEnd(noScene = false, fromPlay = false) {
     clearHitos();
     endEl.hidden = false;
     runEl.classList.add('ended');
+    if (!noScene) sfx.end();
     if (stage && !noScene) {
       applyInsets();
       if (!c.camTouched) {

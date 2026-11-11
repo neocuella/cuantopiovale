@@ -22,6 +22,7 @@ import { LAYOUT, MONTH_W, YEAR_W, YEAR_H, YEAR_PX, YEAR_PZ } from '../lib/calend
 const MAX_DPR = 2;
 const DROP_MS = 520;
 const DROP_HEIGHT = 2.2;
+const DROP_IMPACT = 0.62; // en qué parte de la caída toca el papel por primera vez (ver bounce)
 const MAX_ANIMATED = 90;
 const DROP_CAP = MAX_ANIMATED * 2;
 const RING_GAP_MS = 220;
@@ -56,11 +57,11 @@ export function webglAvailable() {
 }
 
 function bounce(t) {
-  if (t < 0.62) {
-    const u = t / 0.62;
+  if (t < DROP_IMPACT) {
+    const u = t / DROP_IMPACT;
     return 1 - u * u;
   }
-  const u = (t - 0.62) / 0.38;
+  const u = (t - DROP_IMPACT) / (1 - DROP_IMPACT);
   return 0.16 * Math.sin(Math.PI * u) * (1 - u * 0.3);
 }
 
@@ -701,7 +702,11 @@ export class Stage {
 
     this.dI = new Int32Array(DROP_CAP);
     this.dT = new Float64Array(DROP_CAP);
+    this.dL = new Uint8Array(DROP_CAP); // ya tocó el papel (para el sonido)
     this.dn = 0;
+    // Sonido: onLand(golpes, visibilidad) y onAssemble(), cuando hay algo que oír.
+    this.onLand = null;
+    this.onAssemble = null;
     this.loaded = new Float32Array(4); // recuadro de meses con figuras cargadas
     this.hasLoaded = false;
     this.bought = 0;
@@ -1305,9 +1310,11 @@ export class Stage {
         this.markRange(this.dI[0], this.dI[drop - 1]);
         this.dI.copyWithin(0, drop, this.dn);
         this.dT.copyWithin(0, drop, this.dn);
+        this.dL.copyWithin(0, drop, this.dn);
         this.dn -= drop;
       }
       let dropped = false;
+      let built = false;
       for (let i = from; i < n; i++) {
         if (this.ks[i] < INTRO_UNITS && !this.snap && this.an < this.aI.length) {
           // de las primeras: se arma pieza por pieza en su lugar
@@ -1316,15 +1323,18 @@ export class Stage {
           this.an++;
           this.buildAttr.array[i] = 0;
           this.markBuild(i);
+          built = true;
           continue;
         }
         this.dI[this.dn] = i;
         this.dT[this.dn] = now;
+        this.dL[this.dn] = 0;
         this.dn++;
         arr[i * 16 + 13] = DROP_HEIGHT;
         dropped = true;
       }
       if (dropped) this.markRange(from, n - 1);
+      if (built) this.onAssemble?.();
     }
     this.mesh.count = this.lod.count = this.shadow.count = n;
   }
@@ -1552,16 +1562,23 @@ export class Stage {
     // caídas
     if (this.mesh && this.dn) {
       const arr = this.mesh.instanceMatrix.array;
-      let lo = Infinity, hi = -1, keep = 0;
+      let lo = Infinity, hi = -1, keep = 0, hits = 0;
       for (let k = 0; k < this.dn; k++) {
         const i = this.dI[k];
         const t = (now - this.dT[k]) / DROP_MS;
-        if (t >= 1 || i >= this.mesh.count) {
+        const gone = i >= this.mesh.count;
+        let landed = this.dL[k];
+        if (!gone && !landed && t >= DROP_IMPACT) {
+          hits++;
+          landed = 1;
+        }
+        if (t >= 1 || gone) {
           arr[i * 16 + 13] = 0;
         } else {
           arr[i * 16 + 13] = DROP_HEIGHT * bounce(Math.max(0, t));
           this.dI[keep] = i;
           this.dT[keep] = this.dT[k];
+          this.dL[keep] = landed;
           keep++;
         }
         if (i < lo) lo = i;
@@ -1569,6 +1586,7 @@ export class Stage {
       }
       this.dn = keep;
       this.markRange(lo, hi);
+      if (hits && this.onLand) this.onLand(hits, this.vis.value);
     }
     // armado de las primeras figuras
     if (this.mesh && this.an) {
@@ -1731,6 +1749,43 @@ export class Stage {
     // los años que todavía no se dibujan no tienen días
     if (d !== null && d !== undefined && this.revealYears < this.c.years && Math.floor(this.c.monthOfDay(d) / 12) >= this.revealYears) return null;
     return d;
+  }
+
+  /**
+   * Figura comprada bajo un punto de la pantalla (número de unidad, desde 0), o null. Las figuras
+   * se paran sobre su celda y asoman hacia arriba en pantalla: se prueban también las celdas que
+   * quedan más abajo del punto, y gana la de más adelante.
+   */
+  unitAtPoint(clientX, clientY) {
+    if (!this.c || !this.mesh || this.vis.value < 0.5) return null;
+    const hpx = (this.modelH * Math.cos(ELEV) * this.heightPx) / (2 * this.h);
+    const steps = Math.min(24, Math.max(1, Math.ceil(hpx / 6)));
+    for (let j = steps; j >= 0; j--) {
+      const d = this.dayAtPoint(clientX, clientY + (hpx * j) / steps);
+      if (d === null || d === undefined || d < 0 || d % this.c.period) continue;
+      const k = d / this.c.period;
+      if (k < this.bought && k < this.c.N) return k;
+    }
+    return null;
+  }
+
+  /** La figura de la unidad k da un saltito (si está cargada). */
+  hop(k, now = performance.now()) {
+    if (!this.mesh || this.dn >= DROP_CAP) return;
+    let lo = 0, hi = this.nLoaded;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.ks[mid] < k) lo = mid + 1;
+      else hi = mid;
+    }
+    const i = lo;
+    if (this.ks[i] !== k || i >= this.mesh.count) return;
+    for (let m = 0; m < this.dn; m++) if (this.dI[m] === i) return; // ya está en el aire
+    this.dI[this.dn] = i;
+    this.dT[this.dn] = now - DROP_IMPACT * DROP_MS; // arranca en el rebote, desde el piso
+    this.dL[this.dn] = 1;
+    this.dn++;
+    this.wake();
   }
 
   // ——— Bucle ———

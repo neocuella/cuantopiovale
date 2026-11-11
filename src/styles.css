@@ -942,6 +942,10 @@ a {
   transform: translateY(2px);
   box-shadow: 0 1px 0 var(--ink);
 }
+.nav-sound[aria-pressed='true'] .i-off,
+.nav-sound[aria-pressed='false'] .i-on {
+  display: none;
+}
 
 .run-controls {
   position: absolute;
