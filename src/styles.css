@@ -2610,3 +2610,9 @@ a {
 .about-foot a {
   white-space: nowrap;
 }
+
+/* Portada: la aclaración de la segunda nota va del mismo tamaño que la fuente de la primera. */
+.info-card-caveat .info-text {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
