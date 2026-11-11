@@ -103,7 +103,7 @@ function drawItem(ctx, item, portrait) {
   ctx.fillStyle = INK;
   ctx.font = font(900, 46);
   ctx.letterSpacing = `${-0.03 * 46}px`;
-  ctx.fillText('¿Cuánto pio vale?', PAD, y);
+  ctx.fillText('¿Cuánto pio valen?', PAD, y);
 
   y += 62;
   ctx.fillStyle = INK2;
@@ -141,8 +141,8 @@ function drawHome(ctx, portrait) {
   const colW = 640;
   let y = 150;
   ctx.fillStyle = INK;
-  const t = fit(ctx, '¿Cuánto pio vale?', 900, 84, colW, -0.035);
-  ctx.fillText('¿Cuánto pio vale?', PAD, y);
+  const t = fit(ctx, '¿Cuánto pio valen?', 900, 84, colW, -0.035);
+  ctx.fillText('¿Cuánto pio valen?', PAD, y);
   y += t * 0.25;
   for (const line of [`US$ ${fmtNum(Math.round(model.totalUSD / 1e6))}`, 'millones']) {
     const s = fit(ctx, line, 900, 150, colW, -0.05);
