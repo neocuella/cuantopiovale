@@ -16,6 +16,8 @@ export function renderHero(model) {
   const doc = model.components[0]?.document || '';
   // el monto en dólares, sin decimales ("US$ 813 millones"), y el monto completo en guaraníes
   setChildren($('#fig-usd'), `US$ ${fmtMillions(model.totalUSD)}`);
+  // el mismo monto en la pregunta de las tarjetas ("los 813 palos verdes")
+  setChildren($('#pick-usd'), fmtNum(Math.round(model.totalUSD / 1e6)));
   // el asterisco lleva a la nota de abajo, que empieza con el mismo asterisco
   setChildren($('#fig-gs'), fmtGs(model.total), h('span', { class: 'ast', 'aria-hidden': 'true' }, '*'));
   setChildren(

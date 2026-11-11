@@ -674,6 +674,7 @@ export class Stage {
     this.pins.frustumCulled = false;
     this.cal.add(this.pins);
     this.pinEls = [];
+    this.revealDay = Infinity; // hasta qué día se dibuja el calendario (ver setReveal)
     this.pinPos = new Float32Array(PIN_MAX * 2);
 
     // Anillos que marcan dónde cae la figura nueva (se ven aunque el calendario esté lejos).
@@ -824,7 +825,36 @@ export class Stage {
 
   fullFrame() {
     const c = this.c;
+    if (this.revealDay < c.totalDays) {
+      // la primera vez, "todo" es lo recorrido: los años que faltan todavía no existen
+      const i = Math.max(c.startMonth, c.monthOfDay(this.revealDay));
+      const p = c.prefix;
+      return this.frameRect(p[i * 4], p[i * 4 + 1] - 0.2, p[i * 4 + 2], p[i * 4 + 3], this.modelH, {});
+    }
     return this.frameRect(0, 0, c.width, c.depth, this.modelH, {});
+  }
+
+  /**
+   * Hasta qué día se puede ver el calendario. La primera vez que se ve una cosa, las tarjetas de
+   * los años siguientes (y sus hitos) no se dibujan hasta que la fecha llega a ellos, para que no
+   * se adivine dónde termina. Con `day` al final (o más), se ve todo.
+   */
+  setReveal(day) {
+    const c = this.c;
+    if (!c || !this.years) return;
+    const all = day >= c.totalDays;
+    this.revealDay = all ? Infinity : Math.max(0, day);
+    const ry = all ? c.years : Math.floor(c.monthOfDay(this.revealDay) / 12) + 1;
+    if (ry !== this.revealYears) {
+      this.revealYears = ry;
+      this.years.geometry.instanceCount = ry;
+      this.months.geometry.instanceCount = ry * 12;
+      this.monthLabels.geometry.instanceCount = ry * 12;
+      this.yearLabels.geometry.instanceCount = ry * this.yearDigits;
+      this.camDirty = true;
+      this.wake();
+    }
+    this.showHitos();
   }
 
   /** En modo tiempo, la cámara encuadra lo transcurrido (desde hoy hasta la fecha marcada). */
@@ -1052,6 +1082,7 @@ export class Stage {
         }
       }
       g.instanceCount = k;
+      this.yearDigits = k / cal.years; // 4 cifras por año
       g.setAttribute('aLab', new THREE.InstancedBufferAttribute(lab, 4));
       g.setAttribute('aRank', new THREE.InstancedBufferAttribute(rank, 1));
       this.yearLabels = new THREE.Mesh(g, this.yearLabMat);
@@ -1061,6 +1092,8 @@ export class Stage {
       m.frustumCulled = false;
       this.cal.add(m);
     }
+    this.revealDay = Infinity;
+    this.revealYears = cal.years;
 
     this.buildUnits();
 
@@ -1160,6 +1193,22 @@ export class Stage {
   // ——— Hitos ———
 
   setHitos(list) {
+    this.hitoAll = list;
+    this.hitoShown = -1;
+    this.showHitos();
+  }
+
+  /** Banderitas de los hitos a los que ya se llegó (todos, si el final ya se vio). */
+  showHitos() {
+    const all = this.hitoAll || [];
+    let n = all.length;
+    while (n > 0 && all[n - 1].day > this.revealDay) n--;
+    if (n === this.hitoShown) return;
+    this.hitoShown = n;
+    this.drawHitos(all.slice(0, n));
+  }
+
+  drawHitos(list) {
     for (const el of this.pinEls) el.remove();
     this.pinEls = [];
     const n = Math.min(PIN_MAX, list.length);
@@ -1678,7 +1727,10 @@ export class Stage {
   dayAtPoint(clientX, clientY) {
     if (!this.c) return null;
     this.groundAt(clientX, clientY, _g0);
-    return this.c.dayAt(_g0[0], _g0[1]);
+    const d = this.c.dayAt(_g0[0], _g0[1]);
+    // los años que todavía no se dibujan no tienen días
+    if (d !== null && d !== undefined && this.revealYears < this.c.years && Math.floor(this.c.monthOfDay(d) / 12) >= this.revealYears) return null;
+    return d;
   }
 
   // ——— Bucle ———

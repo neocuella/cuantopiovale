@@ -89,6 +89,10 @@ También imprime la tabla de cosa → costo → unidades → duración para revi
   scroll sobre ella para avanzar de a días, semanas, meses o años según la velocidad. Todo lo que
   se ve depende de la fecha marcada, así que se puede ir y volver. Sobre el calendario, los gestos
   mueven, acercan y giran la cámara; mientras nadie la toca, la cámara sigue la fecha.
+- La primera vez que se ve una cosa, no se muestra dónde termina: la línea de tiempo solo dibuja lo
+  recorrido y se pierde en una niebla con "?", y el calendario no dibuja los años siguientes hasta
+  llegar a ellos. Al terminarse la plata se ve todo, y el navegador recuerda ese final
+  (`localStorage`, clave `cpv-finales`) para mostrar la línea completa las veces siguientes.
 - Respeta `prefers-reduced-motion` (sin movimientos automáticos de cámara ni caídas) y muestra el
   resultado sin animación si no hay WebGL.
 

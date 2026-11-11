@@ -2190,3 +2190,63 @@ a {
     height: 100%;
   }
 }
+
+/* ——— Línea de tiempo en días: cada marca guarda su día (--d) y la línea, la escala (--k) ———
+   La primera vez que se ve una cosa, lo que falta recorrer queda tapado por una niebla con "?". */
+.tl-body {
+  --k: 0;
+  --day: 0;
+  --max: 0;
+}
+.tick,
+.tl-hito {
+  left: calc(var(--d) * var(--k) * 1%);
+}
+.tl-head {
+  left: calc(var(--day) * var(--k) * 1%);
+}
+.tl-fill {
+  width: calc(var(--day) * var(--k) * 1%);
+}
+/* las marcas armadas de sobra (para que la línea crezca) no se salen por la derecha */
+.tl-ticks {
+  clip-path: inset(-24px 0 -24px -24px);
+}
+.tl-hitos {
+  clip-path: inset(-12px 0 -24px -24px);
+}
+.tl-hito {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.tl-hito.ahead {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+.tl-fog {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: calc(var(--max) * var(--k) * 1%);
+  right: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 17px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0.7) 70px, #fff 170px);
+  pointer-events: none;
+  transition: opacity 0.9s ease;
+}
+.tl-fog[hidden] {
+  display: none;
+}
+.tl-fog.out {
+  opacity: 0;
+}
+.tl-fog span {
+  margin-right: 6px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--muted);
+}

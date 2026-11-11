@@ -208,6 +208,26 @@ async function ensureStage() {
   }
 }
 
+// La primera vez que se ve una cosa, no se sabe dónde termina: la línea de tiempo y el calendario
+// solo muestran lo recorrido. El navegador recuerda qué finales ya se vieron.
+const SEEN_KEY = 'cpv-finales';
+function seenEnding(id) {
+  try {
+    return (localStorage.getItem(SEEN_KEY) || '').split(',').includes(id);
+  } catch {
+    return false;
+  }
+}
+function markSeen(id) {
+  try {
+    const list = new Set((localStorage.getItem(SEEN_KEY) || '').split(',').filter(Boolean));
+    list.add(id);
+    localStorage.setItem(SEEN_KEY, [...list].join(','));
+  } catch {
+    /* sin almacenamiento: la próxima vez vuelve a ser sorpresa */
+  }
+}
+
 /** Nivel de paso más grande que tiene sentido para la duración de la corrida. */
 function maxLevelFor(totalDays) {
   const sizes = [1, 7, 30, 365, 3652, 36524];
@@ -252,7 +272,10 @@ async function openRun(item) {
     lastText: {},
     lastLeft: -1,
     nextHito: 0,
+    mystery: !reducedMotion.matches && !seenEnding(item.id), // todavía no se sabe dónde termina
+    maxDay: 0, // hasta dónde se llegó
   };
+  if (!c.mystery) c.maxDay = run.totalDays;
   current = c;
   setChildren(hud.unitsName, item.namePlural);
   setChildren(hud.live, `Empieza: 1 ${item.name} ${fmtPeriod(item.periodDays)} desde hoy.`);
@@ -271,15 +294,15 @@ async function openRun(item) {
     {
       track: $('#tl-track'),
       ticks: $('#tl-ticks'),
-      fill: $('#tl-fill'),
-      head: $('#tl-head'),
       hitosEl: $('#tl-hitos'),
       tip: $('#tl-tip'),
+      fog: $('#tl-fog'),
     },
     {
       start,
       totalDays: run.totalDays,
       hitos,
+      mystery: c.mystery,
       onSeek: (day, phase) => {
         userTook();
         // mientras se arrastra, la barra no cambia de ancho aunque se cierre la tarjeta
@@ -294,6 +317,7 @@ async function openRun(item) {
   st.snap = reducedMotion.matches;
   st.prepare(item.model, c.cal);
   st.setHitos(hitos.map((x) => ({ day: x.day, label: x.label })));
+  st.setReveal(c.maxDay);
   followDate();
   applyInsets();
   runEl.classList.remove('faded');
@@ -322,6 +346,16 @@ function setP(p, { animate = false, fromPlay = false } = {}) {
   const prevDay = c.day;
   c.bought = s.bought;
   c.day = s.day;
+  if (s.day > c.maxDay) {
+    c.maxDay = s.day;
+    stage?.setReveal(s.day);
+  }
+  // se terminó la plata por primera vez: ahora sí se ve dónde termina
+  if (p >= 1 && c.mystery) {
+    c.mystery = false;
+    markSeen(c.item.id);
+    c.timeline?.reveal(!reducedMotion.matches);
+  }
   updateHud(s, forward, prevDay);
   if (stage) stage.setTime(s.bought, s.day, animate && forward && !reducedMotion.matches);
   if (p >= 1 && !c.endShown) showEnd(false, fromPlay);
@@ -616,7 +650,10 @@ function showTipAt(x, y) {
   const bought = d >= 0 && d < c.run.totalDays && d % c.item.periodDays === 0;
   const k = d / c.item.periodDays + 1;
   let txt = fmtDate(date);
-  if (d < 0) txt += ' · antes de hoy';
+  // más allá de lo recorrido, la primera vez, solo la fecha: nada que adelante el final
+  if (c.mystery && d > c.maxDay) {
+    /* solo la fecha */
+  } else if (d < 0) txt += ' · antes de hoy';
   else if (bought) txt += k <= c.bought ? ` · ${c.item.name} n.º ${fmtNum(k)}` : ` · ${c.item.name} n.º ${fmtNum(k)} (todavía no)`;
   else if (d >= c.run.totalDays) txt += ' · ya no alcanza';
   tipEl.textContent = txt;
@@ -668,7 +705,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'PageDown') target = addCalendar(base, 3, 1);
   else if (e.key === 'PageUp') target = addCalendar(base, 3, -1);
   else if (e.key === 'Home') target = 0;
-  else if (e.key === 'End') target = c.run.totalDays;
+  else if (e.key === 'End') target = c.mystery ? c.maxDay : c.run.totalDays;
   if (target === null) return;
   if (onControl && t.id !== 'tl-play') return;
   e.preventDefault();
