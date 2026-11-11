@@ -100,4 +100,6 @@ También imprime la tabla de cosa → costo → unidades → duración para revi
 
 [MIT](LICENSE). Los datos tienen sus fuentes indicadas en cada fila.
 
+Los íconos de WhatsApp, X, Facebook y Telegram del panel de compartir son de [Simple Icons](https://simpleicons.org) (CC0 1.0).
+
 La tipografía es [Geist](https://vercel.com/font) (Vercel), bajo la licencia SIL Open Font License 1.1 ([src/fonts/OFL-Geist.txt](src/fonts/OFL-Geist.txt)); se sirve con el sitio.

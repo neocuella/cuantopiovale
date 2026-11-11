@@ -34,7 +34,6 @@ export function buildResult({ model, item, run, noScene, onMore, onShare, onOthe
       h('button', { class: 'btn', type: 'button', onclick: onShare, id: 'share-btn' }, 'Compartir'),
       h('button', { class: 'btn', type: 'button', onclick: onOther }, 'Otra cosa')
     ),
-    h('p', { class: 'share-status', id: 'share-status', role: 'status' }),
     h('p', { class: 'result-fine' }, 'Según la imputación fiscal. No es una pérdida probada.')
   );
 }

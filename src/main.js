@@ -10,7 +10,8 @@ import { buildResult, buildDetails } from './ui/endcard.js';
 import { createTimeline } from './ui/timeline.js';
 import { createPicker } from './ui/picker.js';
 import { Stepper, LEVELS } from './ui/stepper.js';
-import { SITE_NAME, itemPath, itemIdFromPath } from './lib/share.js';
+import { SITE_NAME, itemPath, itemIdFromPath, ogImagePath, itemTitle } from './lib/share.js';
+import { openShareSheet } from './ui/sharesheet.js';
 
 const items = model.items.filter((i) => i.enabled && i.usedCount > 0);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -674,7 +675,7 @@ function hideTip() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (runEl.hidden || infoDlg.open) return;
+  if (runEl.hidden || document.querySelector('dialog[open]')) return; // Más info, compartir
   if (e.key === 'Escape') {
     closeRun();
     return;
@@ -909,27 +910,21 @@ function closeRun() {
   ctaBtn.focus({ preventScroll: true });
 }
 
-async function share() {
+function share() {
   const c = current;
   if (!c) return;
   // c/<id>/ tiene su propia vista previa (título e imagen de esa cosa) en WhatsApp, X, etc.
   const url = new URL(itemPath(c.item.id), siteRoot);
   const text = `Según la imputación fiscal del caso ueno, el perjuicio preliminar estimado alcanza para 1 ${c.item.name} ${fmtPeriod(c.item.periodDays)} hasta el ${fmtDate(c.run.end)}.`;
-  const status = $('#share-status');
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: SITE_NAME, text, url: url.href });
-      return;
-    } catch (e) {
-      if (e && e.name === 'AbortError') return;
-    }
-  }
-  try {
-    await navigator.clipboard.writeText(`${text} ${url.href}`);
-    status.textContent = 'Enlace copiado.';
-  } catch {
-    status.textContent = `Copiá este enlace: ${url.href}`;
-  }
+  userTook();
+  openShareSheet({
+    url: url.href,
+    text,
+    title: SITE_NAME,
+    image: new URL(ogImagePath(c.item.id), siteRoot).href,
+    imageAlt: itemTitle(model, c.item),
+    via: 'mendigodetokens', // la cuenta del sitio en X
+  });
 }
 
 new ResizeObserver(() => applyInsets()).observe(endEl);
