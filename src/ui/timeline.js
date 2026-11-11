@@ -3,7 +3,8 @@
 //
 // La primera vez que se ve una cosa, la línea no muestra dónde termina: solo dibuja lo recorrido
 // (más un margen que se pierde en una niebla con "?") y se estira a medida que se avanza. Los hitos
-// aparecen cuando se llega a ellos y no se puede arrastrar más allá de lo ya visto. Al llegar al
+// aparecen cuando se llega a ellos. Se puede arrastrar hasta el borde, dentro de la niebla: mientras
+// se arrastra la escala queda quieta, y al soltar la línea se estira para lo nuevo. Al llegar al
 // final, `reveal()` la lleva a su escala completa.
 //
 // Las posiciones van en días: cada marca guarda su día en --d y el contenedor la escala en --k
@@ -136,12 +137,29 @@ export function createTimeline(els, { start, totalDays, hitos, mystery = false, 
     });
   }
 
-  // Arrastre del cabezal: posición → fecha (con la niebla, nunca más allá de lo recorrido).
+  /** Lleva la escala a `to` días en `dur` ms (sin saltos). */
+  let raf = 0;
+  function animateView(to, dur, done) {
+    cancelAnimationFrame(raf);
+    const from = view;
+    const t0 = performance.now();
+    const step = (t) => {
+      const k = dur ? Math.min(1, (t - t0) / dur) : 1;
+      const e = 1 - Math.pow(1 - k, 3);
+      setView(from + (to - from) * e);
+      if (k < 1) raf = requestAnimationFrame(step);
+      else done?.();
+    };
+    step(t0);
+  }
+
+  // Arrastre del cabezal: posición → fecha. Con la niebla se puede entrar en ella hasta el borde
+  // de la línea; la escala no cambia hasta soltar, para que la fecha no se escape bajo el dedo.
   let dragging = null;
   const dayAtX = (clientX) => {
     const r = track.getBoundingClientRect();
-    const d = Math.round(Math.max(0, (clientX - r.left) / r.width) * view);
-    return Math.min(d, hidden ? maxDay : totalDays);
+    const d = Math.round(Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * view);
+    return Math.min(d, totalDays);
   };
   const onDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
@@ -164,6 +182,8 @@ export function createTimeline(els, { start, totalDays, hitos, mystery = false, 
     dragging = null;
     track.classList.remove('dragging');
     onSeek(dayAtX(e.clientX), 'end');
+    // lo nuevo que se vio arrastrando: la línea se estira para dejar otra vez niebla adelante
+    if (hidden) animateView(targetView(), 450);
   };
   track.addEventListener('pointerdown', onDown);
   track.addEventListener('pointermove', onMove);
@@ -188,14 +208,13 @@ export function createTimeline(els, { start, totalDays, hitos, mystery = false, 
   ro.observe(track);
 
   let lastDay = -1;
-  let raf = 0;
   return {
     setDay(dayF, label) {
       const day = Math.min(totalDays, Math.max(0, dayF));
       body.style.setProperty('--day', day.toFixed(3));
       if (hidden && day > maxDay) {
         setMax(Math.floor(day));
-        setView(targetView());
+        if (dragging === null) setView(targetView());
       }
       const d = Math.floor(dayF);
       if (d !== lastDay) {
@@ -210,18 +229,8 @@ export function createTimeline(els, { start, totalDays, hitos, mystery = false, 
       hidden = false;
       setMax(totalDays);
       fog.classList.add('out');
-      const from = view;
-      const t0 = performance.now();
-      const dur = animate ? 1100 : 0;
       buildTicks(); // ya sin marcas más allá del final
-      const step = (t) => {
-        const k = dur ? Math.min(1, (t - t0) / dur) : 1;
-        const e = 1 - Math.pow(1 - k, 3);
-        setView(from + (totalDays - from) * e);
-        if (k < 1) raf = requestAnimationFrame(step);
-        else fog.hidden = true;
-      };
-      step(t0);
+      animateView(totalDays, animate ? 1100 : 0, () => (fog.hidden = true));
     },
     destroy() {
       cancelAnimationFrame(raf);
