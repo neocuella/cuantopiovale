@@ -2420,3 +2420,13 @@ a {
 .cc-v {
   font-size: min(0.95rem, 11cqi);
 }
+
+/* La barra de abajo y lo que flota sobre el calendario no se seleccionan: arrastrar la línea de
+   tiempo (o la escena) no tiene que marcar los años ni los montos. */
+.dock,
+.pin-label,
+.cell-tip {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
